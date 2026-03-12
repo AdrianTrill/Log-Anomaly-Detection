@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.venv/
+*.egg
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+!datasets/sample_logs/*.log
+
+# Large benchmark dataset files (download separately)
+datasets/raw/HDFS_v1/HDFS.log
+datasets/raw/HDFS_v1/preprocessed/Event_occurrence_matrix.csv
+datasets/raw/HDFS_v1/preprocessed/Event_traces.csv
+datasets/raw/HDFS_v1/preprocessed/HDFS.npz
+datasets/raw/HDFS_v1/preprocessed/anomaly_label.csv
+datasets/raw/BGL/BGL.log
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build
+*.whl
