@@ -93,7 +93,7 @@ npm run dev
 │   │   ├── api/routes/
 │   │   │   ├── health.py           # GET  /api/health
 │   │   │   ├── upload.py           # POST /api/upload
-│   │   │   ├── analysis.py         # POST /api/analyze (AI stub)
+│   │   │   ├── analysis.py         # POST /api/analyze
 │   │   │   └── datasets.py         # GET  /api/datasets, POST /api/datasets/preview
 │   │   ├── core/
 │   │   │   └── config.py           # Settings via pydantic-settings
@@ -109,9 +109,10 @@ npm run dev
 │   │   │   │   ├── hdfs_parser.py           # HDFS log format parser
 │   │   │   │   └── bgl_parser.py            # BGL log format parser
 │   │   │   ├── analyzer_base.py    # Abstract model interface (ABC)
-│   │   │   ├── transformer_encoder_analyzer.py  # Placeholder
+│   │   │   ├── transformer_encoder_analyzer.py  # Transformer Encoder analyzer
+│   │   │   ├── hdfs_inference_service.py  # HDFS model loading + block-level inference
 │   │   │   ├── model_registry.py   # Model registration and lookup
-│   │   │   └── sequence_builder.py # Future ML preprocessing stub
+│   │   │   └── sequence_builder.py # Sequence preprocessing abstraction
 │   │   └── utils/
 │   │       └── file_utils.py       # File validation and reading
 │   ├── requirements.txt
@@ -159,7 +160,7 @@ npm run dev
 |--------|-----------------------|----------------------------------------------------|
 | GET    | /api/health           | Health check + available models                    |
 | POST   | /api/upload           | Upload, parse, normalize, summarize                |
-| POST   | /api/analyze          | AI analysis stub (placeholder)                     |
+| POST   | /api/analyze          | Run anomaly detection on entries                   |
 | GET    | /api/datasets         | List registered datasets found on disk             |
 | POST   | /api/datasets/preview | Parse first N lines of a dataset (returns UploadResponse) |
 
@@ -258,23 +259,30 @@ Generic upload parsing supports:
 - Export parsed logs as JSON
 - Dark/light theme toggle
 
-### AI Integration Points
-Every log entry includes AI-ready fields from day one:
-- `anomaly_score`: null (will contain float 0-1)
-- `prediction`: null (will contain "normal" | "anomaly")
-- `explanation`: null (will contain model reasoning)
-- `model_name`: null (will contain "transformer_encoder" | "logbert")
-- `inference_status`: "not_run" (will transition through "completed" | "error")
+### AI Anomaly Detection (HDFS)
 
-The frontend renders these fields generically, so plugging in real model output requires zero UI changes.
+The first trained model — a Transformer Encoder for HDFS log anomaly detection — is fully integrated:
 
-## Architecture for Future ML Integration
+- **HDFS dataset preview** automatically runs inference through the trained model
+- The model predicts **per HDFS block session** (all log lines in the same block share one score)
+- Real values are populated on each log entry:
+  - `anomaly_score`: float 0–1 (probability from the model)
+  - `prediction`: `"normal"` or `"anomaly"`
+  - `model_name`: `"transformer_encoder"`
+  - `inference_status`: `"completed"` for HDFS entries, `"not_run"` for other data
+
+The trained checkpoint lives at `ml/artifacts/hdfs/checkpoints/fourth_run/best_model.pt` (test F1 = 0.993, ROC-AUC = 0.9999). It is lazy-loaded on the first HDFS preview request and cached in memory.
+
+**Scope**: Inference currently supports HDFS benchmark-aligned data only. Uploaded generic logs and BGL previews keep `inference_status = "not_run"` — the model does not produce misleading predictions for unsupported data.
+
+## ML Pipeline
+
+The offline ML pipeline lives in `ml/` and handles preprocessing, training, and evaluation separately from the web app. See [`ml/README.md`](ml/README.md) for full documentation.
 
 ```
-Upload → Parse → Normalize → [Sequence Builder] → [Model Inference] → Results
-                                    ↑                      ↑
-                              Future: template         Future: Transformer
-                              extraction + vocab       Encoder → LogBERT
+Preprocessing:  Event_traces.csv → template vocab → padded integer sequences → train/val/test splits
+Training:       Transformer Encoder → BCEWithLogitsLoss (pos_weight ~33x) → best checkpoint (F1-based)
+Inference:      HDFS preview → extract block IDs → look up event sequences → model forward → annotate entries
 ```
 
 ### Adding a New Model
@@ -284,19 +292,10 @@ Upload → Parse → Normalize → [Sequence Builder] → [Model Inference] → 
 3. Register it in `ModelRegistry.__init__`
 4. The API and frontend will pick it up automatically
 
-### Sequence Builder
-
-The `SequenceBuilder` abstract class defines the preprocessing pipeline:
-- `extract_templates()` — convert normalized messages to log templates
-- `build_vocab()` — map templates to integer IDs
-- `build_sequences()` — create sliding windows for model input
-
-Dataset-specific logic (HDFS sessions, BGL time windows, etc.) stays encapsulated inside concrete `SequenceBuilder` implementations.
-
 ## Future Roadmap
 
-1. **Transformer Encoder** — Integrate the first anomaly detection model
-2. **LogBERT** — Add as a second model option
+1. **LogBERT** — Add as a second model option
+2. **BGL inference** — Train and integrate a BGL-specific model
 3. **Model comparison mode** — Side-by-side results from multiple models
-4. **Dataset preprocessing** — HDFS, BGL, Thunderbird-specific sequence builders
-5. **Batch processing** — Large file streaming and async analysis
+4. **Attention visualization** — Explainability for model predictions
+5. **Generalized inference** — Template matching for arbitrary uploaded logs

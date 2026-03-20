@@ -28,6 +28,7 @@ export function SummaryCards({ data }: SummaryCardsProps) {
       icon: FileText,
       color: "text-foreground/70",
       accent: "border-l-foreground/20",
+      show: true,
     },
     {
       title: "Parsed",
@@ -36,6 +37,7 @@ export function SummaryCards({ data }: SummaryCardsProps) {
       icon: CheckCircle2,
       color: "text-emerald-500",
       accent: "border-l-emerald-500/40",
+      show: true,
     },
     {
       title: "Failed",
@@ -44,6 +46,7 @@ export function SummaryCards({ data }: SummaryCardsProps) {
       icon: AlertTriangle,
       color: "text-amber-500",
       accent: "border-l-amber-500/40",
+      show: data.failed_lines > 0,
     },
     {
       title: "Errors",
@@ -52,6 +55,7 @@ export function SummaryCards({ data }: SummaryCardsProps) {
       icon: XCircle,
       color: "text-red-500",
       accent: "border-l-red-500/40",
+      show: errorCount > 0,
     },
     {
       title: "Warnings",
@@ -60,6 +64,7 @@ export function SummaryCards({ data }: SummaryCardsProps) {
       icon: AlertOctagon,
       color: "text-amber-500",
       accent: "border-l-amber-500/40",
+      show: warnCount > 0,
     },
     {
       title: "Info",
@@ -68,12 +73,20 @@ export function SummaryCards({ data }: SummaryCardsProps) {
       icon: Info,
       color: "text-sky-500",
       accent: "border-l-sky-500/40",
+      show: infoCount > 0 && (errorCount > 0 || warnCount > 0),
     },
   ];
 
+  const visibleCards = cards.filter((c) => c.show);
+  const gridCols = visibleCards.length <= 2
+    ? "grid-cols-2"
+    : visibleCards.length <= 3
+      ? "grid-cols-2 md:grid-cols-3"
+      : `grid-cols-2 md:grid-cols-3 lg:grid-cols-${Math.min(visibleCards.length, 6)}`;
+
   return (
-    <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-      {cards.map((card) => (
+    <div className={`grid gap-4 ${gridCols}`}>
+      {visibleCards.map((card) => (
         <Card key={card.title} className={`border-l-2 ${card.accent}`}>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between mb-2">

@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Download, Table2, BarChart3, Brain, FileText } from "lucide-react";
+import { Download, Table2, FileText, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { SummaryCards } from "./SummaryCards";
 import { LevelChart } from "./LevelChart";
 import { SourceChart } from "./SourceChart";
@@ -18,13 +23,11 @@ interface DashboardViewProps {
 }
 
 function SectionHeader({
-  step,
   icon: Icon,
   title,
   subtitle,
   children,
 }: {
-  step: number;
   icon: React.ElementType;
   title: string;
   subtitle: string;
@@ -37,12 +40,7 @@ function SectionHeader({
           <Icon className="h-3.5 w-3.5" />
         </div>
         <div>
-          <div className="flex items-baseline gap-2">
-            <h2 className="text-sm font-semibold">{title}</h2>
-            <span className="text-[9px] text-muted-foreground/40 uppercase tracking-widest font-medium">
-              {step}
-            </span>
-          </div>
+          <h2 className="text-sm font-semibold">{title}</h2>
           <p className="text-[11px] text-muted-foreground/70">{subtitle}</p>
         </div>
       </div>
@@ -51,10 +49,14 @@ function SectionHeader({
   );
 }
 
+export type AiFilter = "all" | "anomaly" | "normal";
+
 export function DashboardView({ data }: DashboardViewProps) {
   const [search, setSearch] = useState("");
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
+  const [aiFilter, setAiFilter] = useState<AiFilter>("all");
   const [selectedEntry, setSelectedEntry] = useState<LogEntry | null>(null);
+  const [parseDetailsOpen, setParseDetailsOpen] = useState(false);
 
   const availableLevels = useMemo(
     () => Object.keys(data.level_distribution).sort(),
@@ -62,6 +64,11 @@ export function DashboardView({ data }: DashboardViewProps) {
   );
 
   const activeLevels = selectedLevels.length === 0 ? availableLevels : selectedLevels;
+
+  const hasInference = useMemo(
+    () => data.entries.some((e) => e.inference_status === "completed"),
+    [data.entries]
+  );
 
   const filteredEntries = useMemo(() => {
     return data.entries.filter((entry) => {
@@ -75,9 +82,11 @@ export function DashboardView({ data }: DashboardViewProps) {
         const matchesRaw = entry.raw_line.toLowerCase().includes(q);
         if (!matchesMessage && !matchesSource && !matchesRaw) return false;
       }
+      if (aiFilter === "anomaly" && entry.prediction !== "anomaly") return false;
+      if (aiFilter === "normal" && !(entry.inference_status === "completed" && entry.prediction === "normal")) return false;
       return true;
     });
-  }, [data.entries, activeLevels, search]);
+  }, [data.entries, activeLevels, search, aiFilter]);
 
   const analyzedCount = useMemo(
     () => data.entries.filter((e) => e.inference_status === "completed").length,
@@ -113,40 +122,30 @@ export function DashboardView({ data }: DashboardViewProps) {
     URL.revokeObjectURL(url);
   };
 
+  const hasMultipleLevels = Object.keys(data.level_distribution).length > 1;
+  const hasMultipleSources = Object.keys(data.source_distribution).length > 1;
+  const showCharts = hasMultipleLevels || hasMultipleSources;
+
   return (
-    <div className="space-y-10">
-      {/* Step 1: Parse Summary */}
+    <div className="space-y-8">
+      {/* Primary: Anomaly Detection Summary */}
       <section>
-        <SectionHeader
-          step={1}
-          icon={FileText}
-          title="Parse Summary"
-          subtitle="Extraction results from the log processing pipeline"
+        <AIStatusSection
+          totalEntries={data.entries.length}
+          analyzedCount={analyzedCount}
+          inferenceSummary={data.inference_summary ?? null}
         />
-        <SummaryCards data={data} />
       </section>
 
-      {/* Step 2: Distribution */}
+      {/* Main workspace: Log Inspection */}
       <section>
         <SectionHeader
-          step={2}
-          icon={BarChart3}
-          title="Distribution Analysis"
-          subtitle="Severity levels and source component breakdown"
-        />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <LevelChart distribution={data.level_distribution} />
-          <SourceChart distribution={data.source_distribution} />
-        </div>
-      </section>
-
-      {/* Step 3: Log Inspection */}
-      <section>
-        <SectionHeader
-          step={3}
           icon={Table2}
           title="Log Inspection"
-          subtitle="Browse parsed entries and select a row to inspect preprocessing stages"
+          subtitle={hasInference
+            ? "Filter, sort, and inspect entries"
+            : "Browse and inspect parsed entries"
+          }
         >
           <div className="flex items-center gap-2.5">
             <Badge variant="secondary" className="text-[10px] font-normal tabular-nums">
@@ -166,6 +165,9 @@ export function DashboardView({ data }: DashboardViewProps) {
             selectedLevels={selectedLevels}
             onLevelToggle={handleLevelToggle}
             availableLevels={availableLevels}
+            aiFilter={aiFilter}
+            onAiFilterChange={setAiFilter}
+            hasInference={hasInference}
           />
           <LogTable
             entries={filteredEntries}
@@ -181,10 +183,27 @@ export function DashboardView({ data }: DashboardViewProps) {
         </div>
       </section>
 
-      {/* Step 4: Anomaly Detection */}
-      <section>
-        <AIStatusSection totalEntries={data.entries.length} analyzedCount={analyzedCount} />
-      </section>
+      {/* Secondary: Parsing Details (collapsible) */}
+      <Collapsible open={parseDetailsOpen} onOpenChange={setParseDetailsOpen}>
+        <CollapsibleTrigger className="flex items-center gap-2 w-full rounded-lg border border-border/30 bg-card/30 px-4 py-2.5 text-muted-foreground/70 hover:text-muted-foreground hover:bg-card/60 transition-colors cursor-pointer">
+          <ChevronRight className={`h-3 w-3 transition-transform ${parseDetailsOpen ? "rotate-90" : ""}`} />
+          <FileText className="h-3 w-3" />
+          <span className="text-[11px] font-medium">Parsing Details</span>
+          <span className="text-[10px] text-muted-foreground/40 ml-0.5 tabular-nums">
+            {data.parsed_lines.toLocaleString()} / {data.total_lines.toLocaleString()} parsed
+            {data.failed_lines > 0 && ` · ${data.failed_lines} fallback`}
+          </span>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-4 space-y-6">
+          <SummaryCards data={data} />
+          {showCharts && (
+            <div className={`grid gap-6 ${hasMultipleLevels && hasMultipleSources ? "lg:grid-cols-2" : ""}`}>
+              {hasMultipleLevels && <LevelChart distribution={data.level_distribution} />}
+              {hasMultipleSources && <SourceChart distribution={data.source_distribution} />}
+            </div>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

@@ -7,6 +7,15 @@ import { Separator } from "@/components/ui/separator";
 import { X, Copy, Check, Brain, FileText, SplitSquareVertical, Sparkles } from "lucide-react";
 import type { LogEntry } from "@/types/log";
 import { LOG_LEVEL_COLORS } from "@/types/log";
+import {
+  formatModelName,
+  formatScore,
+  isAnomalyScore,
+  INFERENCE_STATUS_LABEL,
+  PREDICTION_LABEL,
+  ANOMALY_COLORS,
+  NORMAL_COLORS,
+} from "@/lib/inference";
 
 interface LogDetailPanelProps {
   entry: LogEntry;
@@ -103,7 +112,7 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
           <StageHeader
             icon={FileText}
             title="Original Entry"
-            description="Raw log line exactly as found in the source file"
+            description="Raw log line from source"
           />
           <div className="relative group">
             <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed bg-muted/40 border border-border/40 p-3 rounded-md text-foreground/90">
@@ -122,7 +131,7 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
           <StageHeader
             icon={SplitSquareVertical}
             title="Extracted Fields"
-            description="Structured fields identified by the parser from the raw line"
+            description="Structured fields parsed from the raw line"
           />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <FieldCard label="Timestamp" value={entry.timestamp} mono />
@@ -162,7 +171,7 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
                 <StageHeader
                   icon={Sparkles}
                   title="Normalized Event Pattern"
-                  description="Variable values (IPs, IDs, ports, UUIDs) replaced with tokens for downstream ML"
+                  description="Variable values replaced with tokens for ML"
                   badge={
                     <Badge
                       variant="secondary"
@@ -196,24 +205,58 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
           <StageHeader
             icon={Brain}
             title="AI Analysis"
-            description="Model inference results for anomaly detection"
-            badge={
-              <Badge variant="secondary" className="text-[9px] font-normal py-0">
-                Pending
-              </Badge>
-            }
+            description="Anomaly detection inference"
+            badge={<InferenceStatusBadge status={entry.inference_status} />}
           />
-          <div className="rounded-md border border-dashed border-border/50 bg-muted/15 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <FieldCard label="Model" value={entry.model_name || "Not assigned"} />
+          <div className={`rounded-md border p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 ${
+            entry.inference_status === "completed"
+              ? "border-border/50 bg-muted/25"
+              : "border-dashed border-border/50 bg-muted/15"
+          }`}>
+            <FieldCard label="Model" value={formatModelName(entry.model_name)} />
             <FieldCard label="Anomaly Score" value={
-              entry.anomaly_score !== null ? entry.anomaly_score.toFixed(4) : null
-            } mono />
-            <FieldCard label="Prediction" value={entry.prediction} />
+              entry.anomaly_score !== null ? <ScoreBadge score={entry.anomaly_score} /> : null
+            } />
+            <FieldCard label="Prediction" value={
+              entry.prediction ? <PredictionBadge prediction={entry.prediction} /> : null
+            } />
             <FieldCard label="Explanation" value={entry.explanation} />
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function InferenceStatusBadge({ status }: { status: string }) {
+  const label = INFERENCE_STATUS_LABEL[status] ?? "Pending";
+  const isComplete = status === "completed";
+  return (
+    <Badge
+      variant="secondary"
+      className={`text-[9px] font-normal py-0 ${isComplete ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : ""}`}
+    >
+      {label}
+    </Badge>
+  );
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const colors = isAnomalyScore(score) ? ANOMALY_COLORS : NORMAL_COLORS;
+  return (
+    <span className={`text-xs font-mono font-medium ${colors.text}`}>
+      {formatScore(score)}%
+    </span>
+  );
+}
+
+function PredictionBadge({ prediction }: { prediction: string }) {
+  const colors = prediction === "anomaly" ? ANOMALY_COLORS : NORMAL_COLORS;
+  const label = PREDICTION_LABEL[prediction] ?? prediction;
+  return (
+    <Badge variant="secondary" className={`text-[10px] py-0 font-medium ${colors.badge}`}>
+      {label}
+    </Badge>
   );
 }
 

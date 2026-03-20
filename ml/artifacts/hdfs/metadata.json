@@ -1,0 +1,43 @@
+{
+  "dataset": "HDFS_v1",
+  "source_files": {
+    "templates": "datasets/raw/HDFS_v1/preprocessed/HDFS.log_templates.csv",
+    "traces": "datasets/raw/HDFS_v1/preprocessed/Event_traces.csv",
+    "labels": "datasets/raw/HDFS_v1/preprocessed/anomaly_label.csv"
+  },
+  "config": {
+    "max_seq_len": 50,
+    "val_ratio": 0.1,
+    "test_ratio": 0.1,
+    "seed": 42
+  },
+  "vocab_size": 31,
+  "num_templates": 29,
+  "total_sessions": 575061,
+  "class_distribution": {
+    "normal": 558223,
+    "anomaly": 16838,
+    "anomaly_ratio": 0.0293
+  },
+  "sequence_length_stats": {
+    "min": 2,
+    "max": 298,
+    "mean": 19.4,
+    "median": 19.0,
+    "truncated_count": 55
+  },
+  "splits": {
+    "train": {
+      "total": 460048,
+      "anomaly": 13470
+    },
+    "val": {
+      "total": 57506,
+      "anomaly": 1684
+    },
+    "test": {
+      "total": 57507,
+      "anomaly": 1684
+    }
+  }
+}

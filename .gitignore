@@ -43,6 +43,16 @@ datasets/raw/HDFS_v1/preprocessed/HDFS.npz
 datasets/raw/HDFS_v1/preprocessed/anomaly_label.csv
 datasets/raw/BGL/BGL.log
 
+# ML artifacts — large training data (regenerable via preprocessing pipeline)
+ml/artifacts/**/*.npy
+
+# Keep small inference files needed by the backend (checkpoint, vocab, metadata, eval results)
+!ml/artifacts/**/template_vocab.json
+!ml/artifacts/**/metadata.json
+!ml/artifacts/**/best_model.pt
+!ml/artifacts/**/training_history.json
+!ml/artifacts/**/eval_results.json
+
 # Testing
 .coverage
 htmlcov/

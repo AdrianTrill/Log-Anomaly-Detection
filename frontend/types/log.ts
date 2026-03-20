@@ -27,6 +27,14 @@ export interface TimeRange {
   latest: string | null;
 }
 
+export interface InferenceSummary {
+  model_name: string;
+  entries_analyzed: number;
+  anomalies_detected: number;
+  status: string;
+  scope: string;
+}
+
 export interface UploadResponse {
   file_name: string;
   total_lines: number;
@@ -38,6 +46,7 @@ export interface UploadResponse {
   entries: LogEntry[];
   normalization_info: NormalizationInfo;
   ai_ready: boolean;
+  inference_summary: InferenceSummary | null;
 }
 
 export interface ModelInfo {

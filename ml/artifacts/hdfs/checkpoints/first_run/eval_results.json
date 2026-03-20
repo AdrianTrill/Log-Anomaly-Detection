@@ -1,0 +1,22 @@
+{
+  "checkpoint": "ml/artifacts/hdfs/checkpoints/best_model.pt",
+  "epoch": 8,
+  "test_size": 57507,
+  "metrics": {
+    "accuracy": 0.9995652703149182,
+    "precision": 0.9853715623171445,
+    "recall": 1.0,
+    "f1": 0.9926318891836133,
+    "confusion_matrix": [
+      [
+        55798,
+        25
+      ],
+      [
+        0,
+        1684
+      ]
+    ],
+    "roc_auc": 0.9999904633677797
+  }
+}

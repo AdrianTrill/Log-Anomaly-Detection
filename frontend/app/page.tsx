@@ -5,22 +5,14 @@ import {
   Loader2,
   AlertCircle,
   RotateCcw,
-  Clock,
-  CheckCircle2,
   Upload,
   FlaskConical,
-  ChevronRight,
-  ArrowRight,
+  Brain,
+  FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { FileDropzone } from "@/components/upload/FileDropzone";
 import { SampleDataButton } from "@/components/upload/SampleDataButton";
 import { DatasetPreview } from "@/components/upload/DatasetPreview";
@@ -35,14 +27,11 @@ interface ResultMeta {
   data: UploadResponse;
 }
 
-const PIPELINE_STEPS = ["Upload", "Parse", "Inspect", "Detect"] as const;
-
 export default function HomePage() {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [result, setResult] = useState<ResultMeta | null>(null);
   const [error, setError] = useState("");
-  const [datasetOpen, setDatasetOpen] = useState(false);
 
   const isLoading = uploading;
 
@@ -94,9 +83,6 @@ export default function HomePage() {
 
   if (result) {
     const { source, data } = result;
-    const parseRate = data.total_lines > 0
-      ? Math.round((data.parsed_lines / data.total_lines) * 100)
-      : 0;
 
     const sourceLabel = source === "dataset"
       ? "Benchmark"
@@ -123,15 +109,6 @@ export default function HomePage() {
             <span className="text-xs text-muted-foreground tabular-nums">
               {data.total_lines.toLocaleString()} lines
             </span>
-            <Badge variant="secondary" className="text-[10px] gap-1 py-0.5 shrink-0">
-              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-              {parseRate}%
-            </Badge>
-            {data.time_range?.earliest && (
-              <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums hidden sm:inline">
-                {data.time_range.earliest} &ndash; {data.time_range.latest}
-              </span>
-            )}
           </div>
           <Button
             variant="ghost"
@@ -150,98 +127,96 @@ export default function HomePage() {
 
   return (
     <div className="container px-6 mx-auto py-10 sm:py-14">
-      <div className="max-w-xl mx-auto">
-        {/* Title area */}
-        <div className="text-center mb-8">
+      <div className="max-w-2xl mx-auto">
+        {/* Title */}
+        <div className="text-center mb-10">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Log Anomaly Detection
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-            Parse and normalize log files, inspect structured results, and
-            prepare entries for transformer-based anomaly detection.
+          <p className="mt-2 text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
+            Research workbench for transformer-based anomaly detection on benchmark log datasets.
           </p>
-
-          {/* Pipeline steps */}
-          <div className="flex items-center justify-center gap-1 mt-4">
-            {PIPELINE_STEPS.map((step, i) => (
-              <div key={step} className="flex items-center gap-1">
-                <span className={`text-[10px] tracking-wide font-medium ${
-                  i === 0 ? "text-foreground/80" : "text-muted-foreground/50"
-                }`}>
-                  {step}
-                </span>
-                {i < PIPELINE_STEPS.length - 1 && (
-                  <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30" />
-                )}
-              </div>
-            ))}
-          </div>
         </div>
 
-        {/* Primary upload card */}
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader className="pb-2 pt-5 px-5">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
-                <Upload className="h-3 w-3 text-primary" />
+        <div className="space-y-4">
+          {/* Primary: Benchmark Inference */}
+          <Card className="border-border/60 shadow-sm">
+            <CardHeader className="pb-2 pt-5 px-5">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
+                  <Brain className="h-3 w-3 text-primary" />
+                </div>
+                Benchmark Inference
+              </CardTitle>
+              <p className="text-[11px] text-muted-foreground/70 mt-1">
+                Run trained models on supported benchmark datasets and inspect anomaly predictions.
+              </p>
+            </CardHeader>
+            <CardContent className="px-5 pb-5 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="secondary" className="text-[10px] py-0 gap-1">
+                  <FlaskConical className="h-2.5 w-2.5" />
+                  HDFS
+                </Badge>
+                <Badge variant="outline" className="text-[10px] py-0 text-muted-foreground/50 border-dashed">
+                  BGL — next
+                </Badge>
               </div>
-              Upload Log File
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5 space-y-3">
-            <FileDropzone
-              onFileSelect={handleFileSelect}
-              selectedFile={selectedFile}
-              onClear={handleClear}
-              isUploading={uploading}
-            />
-
-            <div className="flex items-center gap-3">
-              <SampleDataButton
-                onFileSelect={handleSampleSelect}
+              <DatasetPreview
+                onResult={handleDatasetResult}
                 disabled={isLoading}
               />
-              <div className="ml-auto">
-                <Button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || isLoading}
-                  className="gap-2"
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Parsing...
-                    </>
-                  ) : (
-                    "Upload & Parse"
-                  )}
-                </Button>
+            </CardContent>
+          </Card>
+
+          {/* Secondary: Custom Log Parsing */}
+          <Card className="border-border/30 border-dashed">
+            <CardHeader className="pb-2 pt-5 px-5">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted">
+                  <FileText className="h-3 w-3 text-muted-foreground" />
+                </div>
+                Custom Log Parsing
+              </CardTitle>
+              <p className="text-[11px] text-muted-foreground/50 mt-1">
+                Upload any log file for parsing, normalization, and structured inspection.
+                Anomaly inference is not yet available for arbitrary uploads.
+              </p>
+            </CardHeader>
+            <CardContent className="px-5 pb-5 space-y-3">
+              <FileDropzone
+                onFileSelect={handleFileSelect}
+                selectedFile={selectedFile}
+                onClear={handleClear}
+                isUploading={uploading}
+              />
+
+              <div className="flex items-center gap-3">
+                <SampleDataButton
+                  onFileSelect={handleSampleSelect}
+                  disabled={isLoading}
+                />
+                <div className="ml-auto">
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!selectedFile || isLoading}
+                    variant="secondary"
+                    className="gap-2"
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Parsing...
+                      </>
+                    ) : (
+                      "Upload & Parse"
+                    )}
+                  </Button>
+                </div>
               </div>
-            </div>
-
-            <p className="text-[10px] text-muted-foreground/50 leading-relaxed text-center pt-1">
-              Supports structured, bracketed, syslog, and ISO 8601 log formats.
-              Use <span className="font-medium text-muted-foreground/70">Load Sample Data</span> for a quick demo.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Secondary benchmark section */}
-        <Collapsible open={datasetOpen} onOpenChange={setDatasetOpen} className="mt-3">
-          <CollapsibleTrigger className="flex items-center gap-2 w-full rounded-lg border border-border/30 bg-card/30 px-4 py-2 text-muted-foreground/70 hover:text-muted-foreground hover:bg-card/60 transition-colors cursor-pointer">
-            <ChevronRight className={`h-3 w-3 transition-transform ${datasetOpen ? "rotate-90" : ""}`} />
-            <FlaskConical className="h-3 w-3" />
-            <span className="text-[11px] font-medium">Benchmark Datasets</span>
-            <span className="text-[10px] text-muted-foreground/40 ml-0.5">HDFS, BGL</span>
-            <span className="text-[10px] text-muted-foreground/30 ml-auto">research preview</span>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2">
-            <DatasetPreview
-              onResult={handleDatasetResult}
-              disabled={isLoading}
-            />
-          </CollapsibleContent>
-        </Collapsible>
+            </CardContent>
+          </Card>
+        </div>
 
         {error && (
           <div className="mt-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3.5 flex items-start gap-3">

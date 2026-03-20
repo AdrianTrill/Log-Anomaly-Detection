@@ -33,6 +33,14 @@ class TimeRange(BaseModel):
     latest: Optional[str] = None
 
 
+class InferenceSummary(BaseModel):
+    model_name: str
+    entries_analyzed: int
+    anomalies_detected: int
+    status: str  # "completed", "not_available", "not_run"
+    scope: str   # e.g. "hdfs_block_session"
+
+
 class UploadResponse(BaseModel):
     file_name: str
     total_lines: int
@@ -44,6 +52,7 @@ class UploadResponse(BaseModel):
     entries: list[LogEntry] = Field(default_factory=list)
     normalization_info: NormalizationInfo = Field(default_factory=NormalizationInfo)
     ai_ready: bool = True
+    inference_summary: Optional[InferenceSummary] = None
 
 
 class ModelInfo(BaseModel):

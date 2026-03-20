@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, FileSearch } from "lucide-react";
 import type { LogEntry } from "@/types/log";
 import { LOG_LEVEL_COLORS } from "@/types/log";
+import { formatScore, ANOMALY_COLORS, NORMAL_COLORS, PREDICTION_LABEL } from "@/lib/inference";
 
 interface LogTableProps {
   entries: LogEntry[];
@@ -103,14 +104,29 @@ export function LogTable({ entries, onRowClick, selectedId }: LogTableProps) {
       },
       {
         id: "ai_status",
-        header: "AI",
+        accessorFn: (row) => row.anomaly_score ?? -1,
+        header: ({ column }) => (
+          <button
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            AI <ArrowUpDown className="h-3 w-3" />
+          </button>
+        ),
         cell: ({ row }) => {
-          const status = row.original.inference_status;
-          if (status === "completed") {
+          const { inference_status, prediction, anomaly_score } = row.original;
+          if (inference_status === "completed") {
+            const pct = anomaly_score !== null ? formatScore(anomaly_score) : null;
+            const isAnomaly = prediction === "anomaly";
+            const colors = isAnomaly ? ANOMALY_COLORS : NORMAL_COLORS;
+            const label = isAnomaly ? PREDICTION_LABEL.anomaly : "OK";
             return (
-              <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px] px-1.5 py-0">
-                Done
-              </Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge className={`${colors.table} text-[10px] px-1.5 py-0`}>
+                  {label}
+                </Badge>
+                {pct && <span className={`text-[10px] font-mono ${colors.subtleText}`}>{pct}%</span>}
+              </div>
             );
           }
           return (
@@ -119,7 +135,8 @@ export function LogTable({ entries, onRowClick, selectedId }: LogTableProps) {
             </Badge>
           );
         },
-        size: 60,
+        sortingFn: "basic",
+        size: 120,
       },
     ],
     []
