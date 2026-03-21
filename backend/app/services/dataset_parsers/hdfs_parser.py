@@ -36,23 +36,25 @@ class HDFSParser(BaseDatasetParser):
     dataset_name = "HDFS_v1"
     file_pattern = "HDFS.log"
 
-    def parse_file(self, filepath: Path, max_lines: Optional[int] = None) -> list[LogEntry]:
-        raw_lines = self._read_lines(filepath, max_lines)
+    def parse_file(self, filepath: Path, max_lines: Optional[int] = None, start_line: int = 1) -> list[LogEntry]:
+        raw_lines = self._read_lines(filepath, max_lines, start_line)
         entries: list[LogEntry] = []
+        line_offset = max(0, start_line - 1)
 
         for idx, raw_line in enumerate(raw_lines):
             stripped = raw_line.strip()
             if not stripped:
                 continue
 
-            entry_id = f"hdfs-{idx + 1}-{uuid.uuid4().hex[:8]}"
+            real_line = line_offset + idx + 1
+            entry_id = f"hdfs-{real_line}-{uuid.uuid4().hex[:8]}"
             m = HDFS_PATTERN.match(stripped)
 
             if m:
                 timestamp = _format_hdfs_timestamp(m.group(1), m.group(2))
                 entries.append(LogEntry(
                     id=entry_id,
-                    line_number=idx + 1,
+                    line_number=real_line,
                     raw_line=stripped,
                     timestamp=timestamp,
                     level=m.group(4).upper(),
@@ -63,7 +65,7 @@ class HDFSParser(BaseDatasetParser):
             else:
                 entries.append(LogEntry(
                     id=entry_id,
-                    line_number=idx + 1,
+                    line_number=real_line,
                     raw_line=stripped,
                     message=stripped,
                     parse_status="fallback",

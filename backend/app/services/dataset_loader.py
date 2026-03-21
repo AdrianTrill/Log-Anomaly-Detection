@@ -52,6 +52,7 @@ def list_datasets() -> DatasetsListResponse:
 def load_and_parse(
     dataset_name: str,
     max_lines: Optional[int] = None,
+    start_line: int = 1,
 ) -> UploadResponse:
     """Load a dataset file, parse it, normalize, and summarize into UploadResponse."""
     parser = DATASET_REGISTRY.get(dataset_name)
@@ -68,24 +69,29 @@ def load_and_parse(
             f"Place {parser.file_pattern} in datasets/raw/{dataset_name}/"
         )
 
-    entries = parser.parse_file(filepath, max_lines=max_lines)
+    entries = parser.parse_file(filepath, max_lines=max_lines, start_line=start_line)
     total_lines = len(entries)
     entries, normalization_info = normalize_entries(entries)
 
     file_label = f"{dataset_name}/{parser.file_pattern}"
     if max_lines is not None:
-        file_label += f" (first {max_lines} lines)"
+        range_desc = f"lines {start_line:,}–{start_line + max_lines - 1:,}" if start_line > 1 else f"first {max_lines:,} lines"
+        file_label += f" ({range_desc})"
 
     response = generate_summary(entries, file_label, total_lines, normalization_info)
 
     if dataset_name == "HDFS_v1":
         response = _run_hdfs_inference(response)
+    elif dataset_name == "BGL":
+        response = _run_bgl_inference(response)
 
     return response
 
 
 def _run_hdfs_inference(response: UploadResponse) -> UploadResponse:
     """Run HDFS Transformer Encoder inference on parsed entries."""
+    from app.core.inference_config import get_config
+
     try:
         from app.services.hdfs_inference_service import hdfs_service
 
@@ -93,16 +99,17 @@ def _run_hdfs_inference(response: UploadResponse) -> UploadResponse:
             logger.info("HDFS inference service not available, skipping")
             return response
 
+        cfg = get_config("HDFS_v1")
         entries, analyzed, anomalies = hdfs_service.annotate_entries(response.entries)
         response.entries = entries
 
         if analyzed > 0:
             response.inference_summary = InferenceSummary(
-                model_name="transformer_encoder",
+                model_name=cfg["model_name"],
                 entries_analyzed=analyzed,
                 anomalies_detected=anomalies,
                 status="completed",
-                scope="hdfs_block_session",
+                scope=cfg["scope"],
             )
             logger.info(
                 "HDFS inference: %d entries analyzed, %d anomalies detected",
@@ -110,5 +117,38 @@ def _run_hdfs_inference(response: UploadResponse) -> UploadResponse:
             )
     except Exception as e:
         logger.error("HDFS inference failed: %s", e)
+
+    return response
+
+
+def _run_bgl_inference(response: UploadResponse) -> UploadResponse:
+    """Run BGL Transformer Encoder inference on parsed entries."""
+    from app.core.inference_config import get_config
+
+    try:
+        from app.services.bgl_inference_service import bgl_service
+
+        if not bgl_service.is_available():
+            logger.info("BGL inference service not available, skipping")
+            return response
+
+        cfg = get_config("BGL")
+        entries, analyzed, anomalies = bgl_service.annotate_entries(response.entries)
+        response.entries = entries
+
+        if analyzed > 0:
+            response.inference_summary = InferenceSummary(
+                model_name=cfg["model_name"],
+                entries_analyzed=analyzed,
+                anomalies_detected=anomalies,
+                status="completed",
+                scope=cfg["scope"],
+            )
+            logger.info(
+                "BGL inference: %d entries analyzed, %d anomalies detected",
+                analyzed, anomalies,
+            )
+    except Exception as e:
+        logger.error("BGL inference failed: %s", e)
 
     return response

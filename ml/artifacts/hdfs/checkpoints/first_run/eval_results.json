@@ -1,6 +1,7 @@
 {
-  "checkpoint": "ml/artifacts/hdfs/checkpoints/best_model.pt",
+  "checkpoint": "ml/artifacts/hdfs/checkpoints/first_run/best_model.pt",
   "epoch": 8,
+  "threshold": 0.5,
   "test_size": 57507,
   "metrics": {
     "accuracy": 0.9995652703149182,

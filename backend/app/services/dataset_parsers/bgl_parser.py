@@ -44,16 +44,18 @@ class BGLParser(BaseDatasetParser):
     dataset_name = "BGL"
     file_pattern = "BGL.log"
 
-    def parse_file(self, filepath: Path, max_lines: Optional[int] = None) -> list[LogEntry]:
-        raw_lines = self._read_lines(filepath, max_lines)
+    def parse_file(self, filepath: Path, max_lines: Optional[int] = None, start_line: int = 1) -> list[LogEntry]:
+        raw_lines = self._read_lines(filepath, max_lines, start_line)
         entries: list[LogEntry] = []
+        line_offset = max(0, start_line - 1)
 
         for idx, raw_line in enumerate(raw_lines):
             stripped = raw_line.strip()
             if not stripped:
                 continue
 
-            entry_id = f"bgl-{idx + 1}-{uuid.uuid4().hex[:8]}"
+            real_line = line_offset + idx + 1
+            entry_id = f"bgl-{real_line}-{uuid.uuid4().hex[:8]}"
             tokens = stripped.split(None, 9)
 
             if len(tokens) >= 10 and tokens[8].upper() in KNOWN_LEVELS:
@@ -65,7 +67,7 @@ class BGLParser(BaseDatasetParser):
 
                 entries.append(LogEntry(
                     id=entry_id,
-                    line_number=idx + 1,
+                    line_number=real_line,
                     raw_line=stripped,
                     timestamp=timestamp,
                     level=level,
@@ -76,7 +78,7 @@ class BGLParser(BaseDatasetParser):
             else:
                 entries.append(LogEntry(
                     id=entry_id,
-                    line_number=idx + 1,
+                    line_number=real_line,
                     raw_line=stripped,
                     message=stripped,
                     parse_status="fallback",

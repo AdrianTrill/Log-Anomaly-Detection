@@ -156,8 +156,9 @@ def main() -> None:
     vocab_size = metadata["vocab_size"]
     max_seq_len = metadata["config"]["max_seq_len"]
 
+    dataset_name = metadata.get("dataset", "Unknown")
     print("=" * 60, flush=True)
-    print("Transformer Encoder — HDFS Log Anomaly Detection", flush=True)
+    print(f"Transformer Encoder — {dataset_name} Log Anomaly Detection", flush=True)
     print("=" * 60, flush=True)
     print(f"  Artifacts:       {artifacts}")
     print(f"  Output:          {output}")

@@ -96,4 +96,5 @@ class DatasetsListResponse(BaseModel):
 
 class DatasetPreviewRequest(BaseModel):
     dataset_name: str
-    max_lines: int = Field(default=200, ge=1, le=10000)
+    max_lines: int = Field(default=200, ge=1, le=50000)
+    start_line: int = Field(default=1, ge=1)

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 BLOCK_ID_PATTERN = re.compile(r"(blk_-?\d+)")
 
-MODEL_NAME = "transformer_encoder"
+MODEL_NAME = "transformer_encoder_hdfs"
 
 
 class BlockResult:
@@ -50,12 +50,14 @@ class HdfsInferenceService:
         vocab_path: Path,
         traces_path: Path,
         metadata_path: Path,
+        threshold: float,
         project_root: Path,
     ):
         self._checkpoint_path = checkpoint_path
         self._vocab_path = vocab_path
         self._traces_path = traces_path
         self._metadata_path = metadata_path
+        self._threshold = threshold
         self._project_root = project_root
 
         self._model = None
@@ -189,7 +191,7 @@ class HdfsInferenceService:
         results: Dict[str, BlockResult] = {}
         for bid, prob in zip(valid_ids, probs):
             score = float(prob)
-            prediction = "anomaly" if score >= 0.5 else "normal"
+            prediction = "anomaly" if score >= self._threshold else "normal"
             results[bid] = BlockResult(score=score, prediction=prediction)
 
         return results
@@ -246,17 +248,15 @@ class HdfsInferenceService:
 
 def _create_service() -> HdfsInferenceService:
     from app.core.config import _PROJECT_ROOT
+    from app.core.inference_config import get_config
 
-    artifacts_dir = _PROJECT_ROOT / "ml" / "artifacts" / "hdfs"
-    traces_path = (
-        _PROJECT_ROOT / "datasets" / "raw" / "HDFS_v1" / "preprocessed" / "Event_traces.csv"
-    )
-
+    cfg = get_config("HDFS_v1")
     return HdfsInferenceService(
-        checkpoint_path=artifacts_dir / "checkpoints" / "fourth_run" / "best_model.pt",
-        vocab_path=artifacts_dir / "template_vocab.json",
-        traces_path=traces_path,
-        metadata_path=artifacts_dir / "metadata.json",
+        checkpoint_path=cfg["checkpoint"],
+        vocab_path=cfg["vocab"],
+        traces_path=cfg["traces"],
+        metadata_path=cfg["metadata"],
+        threshold=cfg["threshold"],
         project_root=_PROJECT_ROOT,
     )
 

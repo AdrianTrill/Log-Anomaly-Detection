@@ -31,6 +31,9 @@ out/
 *~
 .DS_Store
 
+# Personal planning docs
+THESIS_PROJECT_SUMMARY.md
+
 # Logs
 *.log
 !datasets/sample_logs/*.log

@@ -1,7 +1,7 @@
 """
-Transformer Encoder analyzer — delegates to HdfsInferenceService for
-HDFS block-level anomaly detection. For non-HDFS entries, marks
-inference as not_available.
+Transformer Encoder analyzer — delegates to dataset-specific inference
+services (HDFS block-level, BGL sliding-window) for anomaly detection.
+For entries without a matching service, marks inference as not_available.
 """
 
 import logging
@@ -18,12 +18,19 @@ class TransformerEncoderAnalyzer(AnalyzerBase):
     def analyze(self, entries: list[LogEntry]) -> list[LogEntry]:
         try:
             from app.services.hdfs_inference_service import hdfs_service
-
             if hdfs_service.is_available():
                 entries, _, _ = hdfs_service.annotate_entries(entries)
                 return entries
         except Exception as e:
-            logger.error("Inference failed: %s", e)
+            logger.error("HDFS inference failed: %s", e)
+
+        try:
+            from app.services.bgl_inference_service import bgl_service
+            if bgl_service.is_available():
+                entries, _, _ = bgl_service.annotate_entries(entries)
+                return entries
+        except Exception as e:
+            logger.error("BGL inference failed: %s", e)
 
         for entry in entries:
             entry.model_name = self.MODEL_NAME
@@ -31,20 +38,31 @@ class TransformerEncoderAnalyzer(AnalyzerBase):
         return entries
 
     def model_info(self) -> ModelInfo:
+        available_datasets: list[str] = []
+
         try:
             from app.services.hdfs_inference_service import hdfs_service
-            available = hdfs_service.is_available()
+            if hdfs_service.is_available():
+                available_datasets.append("HDFS")
         except Exception:
-            available = False
+            pass
 
-        if available:
+        try:
+            from app.services.bgl_inference_service import bgl_service
+            if bgl_service.is_available():
+                available_datasets.append("BGL")
+        except Exception:
+            pass
+
+        if available_datasets:
+            datasets_str = ", ".join(available_datasets)
             return ModelInfo(
                 model_name=self.MODEL_NAME,
                 status="available",
-                description="Transformer Encoder for HDFS log sequence anomaly detection (trained, F1=0.99)",
+                description=f"Transformer Encoder for log anomaly detection — {datasets_str} datasets available",
             )
         return ModelInfo(
             model_name=self.MODEL_NAME,
             status="unavailable",
-            description="Transformer Encoder for log sequence anomaly detection (checkpoint not found)",
+            description="Transformer Encoder for log anomaly detection (no checkpoints found)",
         )

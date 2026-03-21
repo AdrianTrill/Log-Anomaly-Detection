@@ -13,10 +13,14 @@ async def get_datasets():
 
 @router.post("/datasets/preview", response_model=UploadResponse)
 async def preview_dataset(request: DatasetPreviewRequest):
-    """Parse the first N lines of a dataset and return the same UploadResponse
+    """Parse a slice of a dataset and return the same UploadResponse
     the frontend already understands from the /upload endpoint."""
     try:
-        return load_and_parse(request.dataset_name, max_lines=request.max_lines)
+        return load_and_parse(
+            request.dataset_name,
+            max_lines=request.max_lines,
+            start_line=request.start_line,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:

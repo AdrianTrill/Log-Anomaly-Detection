@@ -10,7 +10,6 @@ import { LOG_LEVEL_COLORS } from "@/types/log";
 import {
   formatModelName,
   formatScore,
-  isAnomalyScore,
   INFERENCE_STATUS_LABEL,
   PREDICTION_LABEL,
   ANOMALY_COLORS,
@@ -215,7 +214,7 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
           }`}>
             <FieldCard label="Model" value={formatModelName(entry.model_name)} />
             <FieldCard label="Anomaly Score" value={
-              entry.anomaly_score !== null ? <ScoreBadge score={entry.anomaly_score} /> : null
+              entry.anomaly_score !== null ? <ScoreBadge score={entry.anomaly_score} prediction={entry.prediction} /> : null
             } />
             <FieldCard label="Prediction" value={
               entry.prediction ? <PredictionBadge prediction={entry.prediction} /> : null
@@ -241,8 +240,8 @@ function InferenceStatusBadge({ status }: { status: string }) {
   );
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const colors = isAnomalyScore(score) ? ANOMALY_COLORS : NORMAL_COLORS;
+function ScoreBadge({ score, prediction }: { score: number; prediction: string | null }) {
+  const colors = prediction === "anomaly" ? ANOMALY_COLORS : NORMAL_COLORS;
   return (
     <span className={`text-xs font-mono font-medium ${colors.text}`}>
       {formatScore(score)}%

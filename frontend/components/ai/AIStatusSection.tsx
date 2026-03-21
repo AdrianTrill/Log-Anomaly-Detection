@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Cpu, AlertTriangle, ArrowRight } from "lucide-react";
 import type { InferenceSummary } from "@/types/log";
-import { formatModelName, formatAnomalyRate, HDFS_SCOPE_NOTE } from "@/lib/inference";
+import { formatModelName, formatAnomalyRate, getScopeNote } from "@/lib/inference";
 
 interface AIStatusSectionProps {
   totalEntries: number;
@@ -82,15 +82,16 @@ export function AIStatusSection({ totalEntries, analyzedCount, inferenceSummary 
 
         {!isCompleted && (
           <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
-            Load HDFS benchmark data to run inference <ArrowRight className="h-2.5 w-2.5" />
+            Load a benchmark dataset to run inference <ArrowRight className="h-2.5 w-2.5" />
           </span>
         )}
 
-        {isCompleted && inferenceSummary?.scope === "hdfs_block_session" && (
-          <p className="text-[10px] text-muted-foreground/40">
-            {HDFS_SCOPE_NOTE}
-          </p>
-        )}
+        {isCompleted && (() => {
+          const note = getScopeNote(inferenceSummary?.scope);
+          return note ? (
+            <p className="text-[10px] text-muted-foreground/40">{note}</p>
+          ) : null;
+        })()}
       </CardContent>
     </Card>
   );

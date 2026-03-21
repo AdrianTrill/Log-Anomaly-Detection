@@ -26,6 +26,7 @@ def main() -> None:
     parser.add_argument("--artifacts-dir", default="ml/artifacts/hdfs")
     parser.add_argument("--checkpoint", default="ml/artifacts/hdfs/checkpoints/best_model.pt")
     parser.add_argument("--batch-size", type=int, default=512)
+    parser.add_argument("--threshold", type=float, default=0.5, help="Anomaly score threshold (default: 0.5)")
     parser.add_argument("--output", default=None, help="Path to save eval_results.json (default: next to checkpoint)")
 
     args = parser.parse_args()
@@ -99,8 +100,9 @@ def main() -> None:
 
     y_true = np.concatenate(all_labels)
     y_prob = np.concatenate(all_probs)
-    y_pred = (y_prob >= 0.5).astype(int)
+    y_pred = (y_prob >= args.threshold).astype(int)
 
+    print(f"  Threshold:  {args.threshold}\n")
     metrics = compute_metrics(y_true, y_pred, y_prob)
 
     print("Test Results:")
@@ -113,6 +115,7 @@ def main() -> None:
     results = {
         "checkpoint": str(ckpt_path),
         "epoch": ckpt["epoch"],
+        "threshold": args.threshold,
         "test_size": len(test_ds),
         "metrics": metrics,
     }

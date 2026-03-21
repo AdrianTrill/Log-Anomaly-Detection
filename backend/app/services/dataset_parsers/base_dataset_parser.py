@@ -18,9 +18,11 @@ class BaseDatasetParser(ABC):
     file_pattern: str = ""
 
     @abstractmethod
-    def parse_file(self, filepath: Path, max_lines: Optional[int] = None) -> list[LogEntry]:
+    def parse_file(
+        self, filepath: Path, max_lines: Optional[int] = None, start_line: int = 1,
+    ) -> list[LogEntry]:
         """Parse a dataset log file into a list of LogEntry objects.
-        max_lines caps how many lines are read (critical for multi-million-line files)."""
+        start_line is 1-based; max_lines caps how many lines are read from that offset."""
         ...
 
     @abstractmethod
@@ -28,12 +30,17 @@ class BaseDatasetParser(ABC):
         """Return metadata about this dataset for the /api/datasets listing."""
         ...
 
-    def _read_lines(self, filepath: Path, max_lines: Optional[int] = None) -> list[str]:
-        """Read lines from a file with optional cap. Uses errors='replace' for robustness."""
+    def _read_lines(
+        self, filepath: Path, max_lines: Optional[int] = None, start_line: int = 1,
+    ) -> list[str]:
+        """Read lines from a file with optional offset and cap."""
         lines: list[str] = []
+        skip = max(0, start_line - 1)
         with open(filepath, "r", encoding="utf-8", errors="replace") as f:
             for i, line in enumerate(f):
-                if max_lines is not None and i >= max_lines:
+                if i < skip:
+                    continue
+                if max_lines is not None and len(lines) >= max_lines:
                     break
                 lines.append(line)
         return lines

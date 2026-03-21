@@ -5,6 +5,8 @@
 // Model display names (backend ID → human label)
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   transformer_encoder: "Transformer Encoder",
+  transformer_encoder_hdfs: "Transformer Encoder (HDFS)",
+  transformer_encoder_bgl: "Transformer Encoder (BGL)",
 };
 
 export function formatModelName(raw: string | null): string {
@@ -59,6 +61,19 @@ export function formatAnomalyRate(count: number, total: number): string {
   return ((count / total) * 100).toFixed(1);
 }
 
-// Canonical scope note — defined once, used wherever the HDFS scope needs explanation
+// Scope notes — one per inference granularity
 export const HDFS_SCOPE_NOTE =
   "Predictions are per HDFS block-session — all log lines in the same block share one anomaly score.";
+
+export const BGL_SCOPE_NOTE =
+  "Predictions are per sliding window — consecutive log lines in the same window share one anomaly score.";
+
+const SCOPE_NOTES: Record<string, string> = {
+  hdfs_block_session: HDFS_SCOPE_NOTE,
+  bgl_sliding_window: BGL_SCOPE_NOTE,
+};
+
+export function getScopeNote(scope: string | null | undefined): string | null {
+  if (!scope) return null;
+  return SCOPE_NOTES[scope] ?? null;
+}

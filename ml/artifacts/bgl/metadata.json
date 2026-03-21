@@ -1,0 +1,51 @@
+{
+  "dataset": "BGL",
+  "source_files": {
+    "log": "datasets/raw/BGL/BGL.log"
+  },
+  "config": {
+    "max_seq_len": 50,
+    "window_size": 50,
+    "step_size": 50,
+    "max_templates": 300,
+    "val_ratio": 0.1,
+    "test_ratio": 0.1,
+    "seed": 42
+  },
+  "preprocessing": {
+    "strategy": "sliding_window",
+    "template_extraction": "frequency_based_normalization",
+    "window_labeling": "any_anomalous_line"
+  },
+  "vocab_size": 302,
+  "num_templates": 300,
+  "total_lines": 4747963,
+  "parsed_lines": 4713177,
+  "total_windows": 94263,
+  "class_distribution": {
+    "line_level": {
+      "normal": 4364717,
+      "anomaly": 348460,
+      "anomaly_ratio": 0.0739
+    },
+    "window_level": {
+      "normal": 85461,
+      "anomaly": 8802,
+      "anomaly_ratio": 0.0934
+    }
+  },
+  "splits": {
+    "train": {
+      "total": 75410,
+      "anomaly": 7042
+    },
+    "val": {
+      "total": 9426,
+      "anomaly": 880
+    },
+    "test": {
+      "total": 9427,
+      "anomaly": 880
+    }
+  }
+}

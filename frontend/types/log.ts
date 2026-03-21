@@ -86,6 +86,7 @@ export interface DatasetsListResponse {
 export interface DatasetPreviewRequest {
   dataset_name: string;
   max_lines: number;
+  start_line?: number;
 }
 
 export type LogLevel = "ERROR" | "WARN" | "WARNING" | "INFO" | "DEBUG" | "FATAL" | "CRITICAL" | "TRACE";

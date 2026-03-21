@@ -1,0 +1,22 @@
+{
+  "checkpoint": "ml/artifacts/bgl/checkpoints/second_run/best_model.pt",
+  "epoch": 1,
+  "test_size": 9427,
+  "metrics": {
+    "accuracy": 0.9853611965630635,
+    "precision": 0.9375,
+    "recall": 0.9034090909090909,
+    "f1": 0.9201388888888888,
+    "confusion_matrix": [
+      [
+        8494,
+        53
+      ],
+      [
+        85,
+        795
+      ]
+    ],
+    "roc_auc": 0.9968899241626514
+  }
+}

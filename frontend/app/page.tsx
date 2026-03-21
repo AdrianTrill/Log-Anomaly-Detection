@@ -9,6 +9,7 @@ import {
   FlaskConical,
   Brain,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export default function HomePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [result, setResult] = useState<ResultMeta | null>(null);
   const [error, setError] = useState("");
+  const [customOpen, setCustomOpen] = useState(false);
 
   const isLoading = uploading;
 
@@ -81,6 +83,7 @@ export default function HomePage() {
     setUploading(false);
   }, []);
 
+  /* ─── Dashboard view ─── */
   if (result) {
     const { source, data } = result;
 
@@ -125,43 +128,35 @@ export default function HomePage() {
     );
   }
 
+  /* ─── Entry page ─── */
   return (
     <div className="container px-6 mx-auto py-10 sm:py-14">
       <div className="max-w-2xl mx-auto">
-        {/* Title */}
+        {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Log Anomaly Detection
           </h1>
           <p className="mt-2 text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
-            Research workbench for transformer-based anomaly detection on benchmark log datasets.
+            Transformer-based anomaly detection on benchmark log datasets.
           </p>
         </div>
 
         <div className="space-y-4">
-          {/* Primary: Benchmark Inference */}
+          {/* ── Primary: Benchmark Demo ── */}
           <Card className="border-border/60 shadow-sm">
             <CardHeader className="pb-2 pt-5 px-5">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                 <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
                   <Brain className="h-3 w-3 text-primary" />
                 </div>
-                Benchmark Inference
+                Benchmark Demo
               </CardTitle>
               <p className="text-[11px] text-muted-foreground/70 mt-1">
-                Run trained models on supported benchmark datasets and inspect anomaly predictions.
+                Choose a dataset, pick a demo size, and run real anomaly inference.
               </p>
             </CardHeader>
-            <CardContent className="px-5 pb-5 space-y-3">
-              <div className="flex items-center gap-2 mb-1">
-                <Badge variant="secondary" className="text-[10px] py-0 gap-1">
-                  <FlaskConical className="h-2.5 w-2.5" />
-                  HDFS
-                </Badge>
-                <Badge variant="outline" className="text-[10px] py-0 text-muted-foreground/50 border-dashed">
-                  BGL — next
-                </Badge>
-              </div>
+            <CardContent className="px-5 pb-5">
               <DatasetPreview
                 onResult={handleDatasetResult}
                 disabled={isLoading}
@@ -169,52 +164,64 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          {/* Secondary: Custom Log Parsing */}
+          {/* ── Secondary: Custom Upload (collapsible) ── */}
           <Card className="border-border/30 border-dashed">
-            <CardHeader className="pb-2 pt-5 px-5">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <button
+              onClick={() => setCustomOpen(!customOpen)}
+              className="w-full flex items-center justify-between px-5 py-4 text-left"
+            >
+              <div className="flex items-center gap-2">
                 <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted">
                   <FileText className="h-3 w-3 text-muted-foreground" />
                 </div>
-                Custom Log Parsing
-              </CardTitle>
-              <p className="text-[11px] text-muted-foreground/50 mt-1">
-                Upload any log file for parsing, normalization, and structured inspection.
-                Anomaly inference is not yet available for arbitrary uploads.
-              </p>
-            </CardHeader>
-            <CardContent className="px-5 pb-5 space-y-3">
-              <FileDropzone
-                onFileSelect={handleFileSelect}
-                selectedFile={selectedFile}
-                onClear={handleClear}
-                isUploading={uploading}
-              />
-
-              <div className="flex items-center gap-3">
-                <SampleDataButton
-                  onFileSelect={handleSampleSelect}
-                  disabled={isLoading}
-                />
-                <div className="ml-auto">
-                  <Button
-                    onClick={handleUpload}
-                    disabled={!selectedFile || isLoading}
-                    variant="secondary"
-                    className="gap-2"
-                  >
-                    {uploading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Parsing...
-                      </>
-                    ) : (
-                      "Upload & Parse"
-                    )}
-                  </Button>
+                <div>
+                  <span className="text-sm font-semibold text-muted-foreground">Custom Log Inspection</span>
+                  <p className="text-[10px] text-muted-foreground/40 mt-0.5">
+                    Upload any log file for parsing and exploration
+                  </p>
                 </div>
               </div>
-            </CardContent>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground/40 transition-transform ${customOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {customOpen && (
+              <CardContent className="px-5 pb-5 pt-0 space-y-3">
+                <FileDropzone
+                  onFileSelect={handleFileSelect}
+                  selectedFile={selectedFile}
+                  onClear={handleClear}
+                  isUploading={uploading}
+                />
+
+                <div className="flex items-center gap-3">
+                  <SampleDataButton
+                    onFileSelect={handleSampleSelect}
+                    disabled={isLoading}
+                  />
+                  <div className="ml-auto">
+                    <Button
+                      onClick={handleUpload}
+                      disabled={!selectedFile || isLoading}
+                      variant="secondary"
+                      className="gap-2"
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Parsing...
+                        </>
+                      ) : (
+                        "Upload & Parse"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
+                  Custom uploads support parsing, normalization, and inspection. Trained anomaly inference is available for benchmark datasets above.
+                </p>
+              </CardContent>
+            )}
           </Card>
         </div>
 
