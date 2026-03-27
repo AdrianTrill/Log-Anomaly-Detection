@@ -20,6 +20,7 @@ async def preview_dataset(request: DatasetPreviewRequest):
             request.dataset_name,
             max_lines=request.max_lines,
             start_line=request.start_line,
+            model_name=request.model_name,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

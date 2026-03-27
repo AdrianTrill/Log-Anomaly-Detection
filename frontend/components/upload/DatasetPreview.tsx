@@ -1,62 +1,109 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, AlertCircle, Play, Zap, BarChart3, Layers } from "lucide-react";
+import { Loader2, AlertCircle, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { fetchDatasets, previewDataset } from "@/lib/api";
-import type { DatasetInfo, UploadResponse } from "@/types/log";
+import type { DatasetInfo, UploadResponse, RunContext } from "@/types/log";
 
-// ── Demo presets per dataset ──
-// HDFS: first-N is fine (anomalies are distributed evenly across blocks).
-// BGL: curated slices from anomaly-rich regions — the start of the file
-//      contains almost exclusively normal lines which makes a weak demo.
-//      Each start_line was chosen from scanning BGL.log for mixed
-//      normal/anomalous regions (~30-50% anomaly density).
+// ── Curated demo presets per dataset ──
+// Each preset targets a specific anomaly composition so demos
+// are repeatable and meaningful for thesis presentation.
 
 interface PresetConfig {
   id: string;
   label: string;
+  description: string;
   lines: number;
   startLine: number;
-  icon: typeof Zap;
 }
 
 const PRESETS: Record<string, PresetConfig[]> = {
   HDFS_v1: [
-    { id: "quick",    label: "Quick",    lines: 200,  startLine: 1, icon: Zap },
-    { id: "standard", label: "Standard", lines: 1000, startLine: 1, icon: BarChart3 },
-    { id: "extended", label: "Extended", lines: 5000, startLine: 1, icon: Layers },
+    {
+      id: "mixed",
+      label: "Mixed Sample",
+      description: "Balanced normal and anomalous block sessions",
+      lines: 1000,
+      startLine: 1,
+    },
+    {
+      id: "anomaly_heavy",
+      label: "Anomaly-Heavy",
+      description: "Dense anomaly region (~27% flagged)",
+      lines: 500,
+      startLine: 1,
+    },
+    {
+      id: "normal_heavy",
+      label: "Normal-Heavy",
+      description: "Predominantly normal activity",
+      lines: 500,
+      startLine: 50001,
+    },
   ],
   BGL: [
-    { id: "quick",    label: "Quick",    lines: 200,  startLine: 75051,  icon: Zap },
-    { id: "standard", label: "Standard", lines: 1000, startLine: 14001,  icon: BarChart3 },
-    { id: "extended", label: "Extended", lines: 5000, startLine: 75001,  icon: Layers },
+    {
+      id: "mixed",
+      label: "Mixed Sample",
+      description: "Balanced normal and anomalous windows",
+      lines: 1000,
+      startLine: 14001,
+    },
+    {
+      id: "anomaly_heavy",
+      label: "Anomaly-Heavy",
+      description: "Dense anomaly region from later in the log",
+      lines: 500,
+      startLine: 75051,
+    },
+    {
+      id: "normal_heavy",
+      label: "Normal-Heavy",
+      description: "Early region with mostly normal entries",
+      lines: 500,
+      startLine: 1,
+    },
   ],
 };
 
 const DEFAULT_PRESETS: PresetConfig[] = [
-  { id: "quick",    label: "Quick",    lines: 200,  startLine: 1, icon: Zap },
-  { id: "standard", label: "Standard", lines: 1000, startLine: 1, icon: BarChart3 },
-  { id: "extended", label: "Extended", lines: 5000, startLine: 1, icon: Layers },
+  { id: "mixed", label: "Mixed Sample", description: "Default sample", lines: 1000, startLine: 1 },
 ];
 
 const DATASET_META: Record<string, { label: string; tag: string; desc: string }> = {
   HDFS_v1: {
     label: "HDFS",
     tag: "Block-session",
-    desc: "Hadoop distributed file system logs — anomaly detection per block session",
+    desc: "Hadoop distributed file system logs \u2014 anomaly detection per block session",
   },
   BGL: {
     label: "BGL",
     tag: "Sliding-window",
-    desc: "Blue Gene/L supercomputer logs — anomaly detection per sliding window",
+    desc: "Blue Gene/L supercomputer logs \u2014 anomaly detection per sliding window",
   },
 };
 
+interface ModelOption {
+  id: string;
+  label: string;
+}
+
+const DATASET_MODELS: Record<string, ModelOption[]> = {
+  HDFS_v1: [
+    { id: "transformer_encoder_hdfs", label: "Transformer Encoder" },
+    { id: "logbert_hdfs", label: "LogBERT" },
+  ],
+  BGL: [
+    { id: "transformer_encoder_bgl", label: "Transformer Encoder" },
+    { id: "logbert_bgl", label: "LogBERT" },
+  ],
+};
+
 interface DatasetPreviewProps {
-  onResult: (data: UploadResponse) => void;
+  onResult: (data: UploadResponse, context: RunContext) => void;
   disabled: boolean;
 }
 
@@ -65,7 +112,8 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [selectedDataset, setSelectedDataset] = useState("");
-  const [selectedPreset, setSelectedPreset] = useState("standard");
+  const [selectedPreset, setSelectedPreset] = useState("mixed");
+  const [selectedModel, setSelectedModel] = useState("");
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState("");
 
@@ -74,7 +122,9 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
       .then((res) => {
         setDatasets(res.datasets);
         if (res.datasets.length > 0) {
-          setSelectedDataset(res.datasets[0].name);
+          const first = res.datasets[0].name;
+          setSelectedDataset(first);
+          setSelectedModel(DATASET_MODELS[first]?.[0]?.id ?? "");
         }
       })
       .catch((err) => {
@@ -84,8 +134,9 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
   }, []);
 
   const presets = PRESETS[selectedDataset] ?? DEFAULT_PRESETS;
-  const preset = presets.find((p) => p.id === selectedPreset) ?? presets[1];
-  const isCurated = preset.startLine > 1;
+  const preset = presets.find((p) => p.id === selectedPreset) ?? presets[0];
+  const models = DATASET_MODELS[selectedDataset] ?? [];
+  const hasModelChoice = models.length > 1;
 
   const handleRun = async () => {
     if (!selectedDataset) return;
@@ -96,8 +147,20 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
         dataset_name: selectedDataset,
         max_lines: preset.lines,
         ...(preset.startLine > 1 ? { start_line: preset.startLine } : {}),
+        ...(selectedModel ? { model_name: selectedModel } : {}),
       });
-      onResult(result);
+
+      const meta = DATASET_META[selectedDataset];
+      const context: RunContext = {
+        datasetName: selectedDataset,
+        datasetLabel: meta?.label ?? selectedDataset,
+        presetLabel: preset.label,
+        modelId: selectedModel,
+        startLine: preset.startLine,
+        lineCount: preset.lines,
+      };
+
+      onResult(result, context);
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Preview failed");
     } finally {
@@ -146,7 +209,11 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
             return (
               <button
                 key={d.name}
-                onClick={() => { setSelectedDataset(d.name); setSelectedPreset("standard"); }}
+                onClick={() => {
+                  setSelectedDataset(d.name);
+                  setSelectedPreset("mixed");
+                  setSelectedModel(DATASET_MODELS[d.name]?.[0]?.id ?? "");
+                }}
                 disabled={disabled || previewing}
                 className={cn(
                   "relative rounded-lg border px-3.5 py-2.5 text-left transition-all",
@@ -172,12 +239,38 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
         </div>
       </div>
 
-      {/* Preset selector */}
+      {/* Model selector */}
+      {hasModelChoice && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Model</p>
+          <div className="flex gap-1.5">
+            {models.map((m) => {
+              const isActive = m.id === selectedModel;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedModel(m.id)}
+                  disabled={disabled || previewing}
+                  className={cn(
+                    "rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+                    isActive
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border/40 text-muted-foreground hover:border-border/70 hover:text-foreground"
+                  )}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Curated sample preset selector */}
       <div className="space-y-1.5">
-        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Demo Size</p>
+        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Sample</p>
         <div className="flex gap-1.5">
           {presets.map((p) => {
-            const Icon = p.icon;
             const isActive = p.id === selectedPreset;
             return (
               <button
@@ -185,16 +278,18 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
                 onClick={() => setSelectedPreset(p.id)}
                 disabled={disabled || previewing}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+                  "flex flex-col items-start rounded-md border px-3 py-1.5 text-left transition-all",
                   isActive
                     ? "border-primary/50 bg-primary/10 text-primary"
                     : "border-border/40 text-muted-foreground hover:border-border/70 hover:text-foreground"
                 )}
               >
-                <Icon className="h-3 w-3" />
-                {p.label}
-                <span className={cn("text-[10px] font-normal", isActive ? "text-primary/70" : "text-muted-foreground/40")}>
-                  {p.lines.toLocaleString()}
+                <span className="text-xs font-medium">{p.label}</span>
+                <span className={cn(
+                  "text-[10px] font-normal",
+                  isActive ? "text-primary/70" : "text-muted-foreground/40"
+                )}>
+                  {p.lines.toLocaleString()} lines
                 </span>
               </button>
             );
@@ -202,7 +297,7 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
         </div>
       </div>
 
-      {/* Run button + curated note */}
+      {/* Run button */}
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <Button
@@ -230,12 +325,6 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
             </span>
           )}
         </div>
-
-        {isCurated && (
-          <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
-            BGL demos use curated benchmark slices from anomaly-rich regions for a representative demo.
-          </p>
-        )}
       </div>
     </div>
   );

@@ -1,0 +1,24 @@
+{
+  "model": "logbert",
+  "checkpoint": "ml/artifacts/bgl_logbert/checkpoints/fourth_run_lr1e4/best_model.pt",
+  "epoch": 8,
+  "threshold": 0.8,
+  "test_size": 9427,
+  "metrics": {
+    "accuracy": 0.9883313885647608,
+    "precision": 0.9672330097087378,
+    "recall": 0.9056818181818181,
+    "f1": 0.9354460093896714,
+    "confusion_matrix": [
+      [
+        8520,
+        27
+      ],
+      [
+        83,
+        797
+      ]
+    ],
+    "roc_auc": 0.9976791431336887
+  }
+}

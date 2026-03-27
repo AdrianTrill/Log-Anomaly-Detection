@@ -250,7 +250,7 @@ def _create_service() -> HdfsInferenceService:
     from app.core.config import _PROJECT_ROOT
     from app.core.inference_config import get_config
 
-    cfg = get_config("HDFS_v1")
+    cfg = get_config("transformer_encoder_hdfs")
     return HdfsInferenceService(
         checkpoint_path=cfg["checkpoint"],
         vocab_path=cfg["vocab"],

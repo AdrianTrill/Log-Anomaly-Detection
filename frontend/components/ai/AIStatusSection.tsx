@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Cpu, AlertTriangle, ArrowRight } from "lucide-react";
 import type { InferenceSummary } from "@/types/log";
-import { formatModelName, formatAnomalyRate, getScopeNote } from "@/lib/inference";
+import { formatModelName, formatAnomalyRate } from "@/lib/inference";
 
 interface AIStatusSectionProps {
   totalEntries: number;
@@ -33,7 +33,7 @@ export function AIStatusSection({ totalEntries, analyzedCount, inferenceSummary 
               <p className="text-[11px] text-muted-foreground/70">
                 {isCompleted
                   ? `${anomalyCount} anomal${anomalyCount === 1 ? "y" : "ies"} in ${analyzedCount} entries (${anomalyRate}%)`
-                  : `${totalEntries} entries ready for inference`}
+                  : `${totalEntries} entries ready for inspection`}
               </p>
             </div>
           </div>
@@ -43,7 +43,7 @@ export function AIStatusSection({ totalEntries, analyzedCount, inferenceSummary 
             </Badge>
           ) : (
             <Badge variant="outline" className="text-[9px] border-dashed text-muted-foreground/50 font-normal py-0">
-              Next Step
+              Parse Only
             </Badge>
           )}
         </div>
@@ -75,23 +75,16 @@ export function AIStatusSection({ totalEntries, analyzedCount, inferenceSummary 
                 )}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground/50">No results yet</p>
+              <p className="text-xs text-muted-foreground/50">No inference run</p>
             )}
           </div>
         </div>
 
         {!isCompleted && (
           <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
-            Load a benchmark dataset to run inference <ArrowRight className="h-2.5 w-2.5" />
+            Load a benchmark dataset to run anomaly detection <ArrowRight className="h-2.5 w-2.5" />
           </span>
         )}
-
-        {isCompleted && (() => {
-          const note = getScopeNote(inferenceSummary?.scope);
-          return note ? (
-            <p className="text-[10px] text-muted-foreground/40">{note}</p>
-          ) : null;
-        })()}
       </CardContent>
     </Card>
   );

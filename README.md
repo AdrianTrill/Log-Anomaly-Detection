@@ -1,15 +1,16 @@
 # Log Anomaly Detection Platform
 
-A full-stack web application for log analysis with a modular architecture ready for AI-based anomaly detection. Upload raw log files, parse and normalize them, visualize results in an interactive dashboard, and prepare for transformer-based anomaly detection.
+A full-stack web application for log anomaly detection using Transformer-based models. Supports two benchmark datasets (HDFS, BGL) with two model architectures each (Transformer Encoder and LogBERT), plus custom log upload for parsing and inspection.
 
 ## Tech Stack
 
-| Layer     | Technology                                              |
-|-----------|---------------------------------------------------------|
-| Frontend  | Next.js 16 (App Router), TypeScript, Tailwind CSS v4   |
-| UI        | shadcn/ui, Recharts, TanStack Table, react-dropzone    |
-| Backend   | FastAPI, Python, Pydantic v2                            |
-| Theme     | Dark/light mode via next-themes                         |
+| Layer    | Technology                                            |
+|----------|-------------------------------------------------------|
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4  |
+| UI       | shadcn/ui, Recharts, TanStack Table, react-dropzone   |
+| Backend  | FastAPI, Python 3.9+, Pydantic v2                     |
+| ML       | PyTorch, NumPy, scikit-learn                           |
+| Theme    | Dark/light mode via next-themes                        |
 
 ## Quick Start
 
@@ -78,11 +79,11 @@ npm run dev
 
 ### URLs
 
-| Service  | URL                                  |
-|----------|--------------------------------------|
-| Frontend | http://localhost:3000                 |
-| Backend  | http://localhost:8000                 |
-| API Docs | http://localhost:8000/docs            |
+| Service  | URL                       |
+|----------|---------------------------|
+| Frontend | http://localhost:3000      |
+| Backend  | http://localhost:8000      |
+| API Docs | http://localhost:8000/docs |
 
 ## Project Structure
 
@@ -96,23 +97,23 @@ npm run dev
 │   │   │   ├── analysis.py         # POST /api/analyze
 │   │   │   └── datasets.py         # GET  /api/datasets, POST /api/datasets/preview
 │   │   ├── core/
-│   │   │   └── config.py           # Settings via pydantic-settings
+│   │   │   ├── config.py           # Settings via pydantic-settings
+│   │   │   └── inference_config.py # Model-keyed inference config (4 models)
 │   │   ├── models/
-│   │   │   └── schemas.py          # Pydantic models (LogEntry, UploadResponse, etc.)
+│   │   │   └── schemas.py          # Pydantic models (LogEntry, UploadResponse, InferenceSummary)
 │   │   ├── services/
 │   │   │   ├── parser.py           # Regex + fallback log parsing (generic upload)
 │   │   │   ├── normalizer.py       # IP/NUM/UUID masking, level standardization
 │   │   │   ├── summarizer.py       # Stats generation
-│   │   │   ├── dataset_loader.py   # Dataset discovery and dispatch
+│   │   │   ├── dataset_loader.py   # Dataset discovery, model resolution, dispatch
 │   │   │   ├── dataset_parsers/
 │   │   │   │   ├── base_dataset_parser.py   # Abstract base for dataset parsers
 │   │   │   │   ├── hdfs_parser.py           # HDFS log format parser
 │   │   │   │   └── bgl_parser.py            # BGL log format parser
-│   │   │   ├── analyzer_base.py    # Abstract model interface (ABC)
-│   │   │   ├── transformer_encoder_analyzer.py  # Transformer Encoder analyzer
-│   │   │   ├── hdfs_inference_service.py  # HDFS model loading + block-level inference
-│   │   │   ├── model_registry.py   # Model registration and lookup
-│   │   │   └── sequence_builder.py # Sequence preprocessing abstraction
+│   │   │   ├── hdfs_inference_service.py       # HDFS Transformer Encoder inference
+│   │   │   ├── logbert_inference_service.py    # HDFS LogBERT inference
+│   │   │   ├── bgl_inference_service.py        # BGL Transformer Encoder inference
+│   │   │   └── logbert_bgl_inference_service.py # BGL LogBERT inference
 │   │   └── utils/
 │   │       └── file_utils.py       # File validation and reading
 │   ├── requirements.txt
@@ -133,18 +134,33 @@ npm run dev
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx                # Landing page
-│   │   ├── analyze/page.tsx        # Upload + dashboard page
-│   │   └── layout.tsx              # Root layout with nav and theme
+│   │   ├── page.tsx                # Entry page (benchmark demo + custom upload)
+│   │   └── layout.tsx              # Root layout with theme
 │   ├── components/
-│   │   ├── ai/                     # AI placeholder section
-│   │   ├── dashboard/              # Summary cards, charts, orchestrator
-│   │   ├── logs/                   # Table, filters, details drawer
-│   │   ├── upload/                 # Dropzone, sample data button
+│   │   ├── ai/                     # AI summary section (model name, anomalies)
+│   │   ├── dashboard/              # Summary cards, charts, run metadata strip
+│   │   ├── logs/                   # Table, filters, detail panel (score bar, scope context)
+│   │   ├── upload/                 # Dataset preview (model + preset selector), file dropzone
 │   │   └── ui/                     # shadcn/ui components
-│   ├── lib/                        # API client, utilities
+│   ├── lib/
+│   │   ├── api.ts                  # API client
+│   │   ├── inference.ts            # Model names, scope helpers, threshold formatting
+│   │   └── utils.ts                # Shared utilities
 │   ├── types/                      # TypeScript types matching backend schemas
 │   └── package.json
+│
+├── ml/                             # Offline ML pipeline (separate from web app)
+│   ├── models/
+│   │   ├── transformer_encoder.py  # LogAnomalyTransformer (supervised baseline)
+│   │   └── logbert.py              # LogBERT (MLM pre-train + supervised fine-tune)
+│   ├── training/
+│   │   ├── train_transformer.py    # Transformer Encoder training
+│   │   ├── train_logbert.py        # LogBERT two-phase training
+│   │   ├── evaluate.py             # Transformer Encoder evaluation
+│   │   └── evaluate_logbert.py     # LogBERT evaluation
+│   ├── preprocessing/              # Dataset-specific preprocessing scripts
+│   ├── artifacts/                  # Trained models + preprocessing artifacts
+│   └── README.md                   # Full ML pipeline documentation
 │
 └── scripts/
     ├── dev.sh                      # Start both servers
@@ -156,13 +172,13 @@ npm run dev
 
 ## API Endpoints
 
-| Method | Endpoint              | Description                                        |
-|--------|-----------------------|----------------------------------------------------|
-| GET    | /api/health           | Health check + available models                    |
-| POST   | /api/upload           | Upload, parse, normalize, summarize                |
-| POST   | /api/analyze          | Run anomaly detection on entries                   |
-| GET    | /api/datasets         | List registered datasets found on disk             |
-| POST   | /api/datasets/preview | Parse first N lines of a dataset (returns UploadResponse) |
+| Method | Endpoint                | Description                                  |
+|--------|-------------------------|----------------------------------------------|
+| GET    | `/api/health`           | Health check + available models              |
+| POST   | `/api/upload`           | Upload, parse, normalize, summarize          |
+| POST   | `/api/analyze`          | Run anomaly detection on entries             |
+| GET    | `/api/datasets`         | List registered datasets found on disk       |
+| POST   | `/api/datasets/preview` | Preview N lines of a dataset with inference  |
 
 ## Datasets
 
@@ -187,10 +203,10 @@ datasets/
 
 ### Supported datasets
 
-| Dataset | Format | Parser |
-|---------|--------|--------|
-| HDFS_v1 | `YYMMDD HHMMSS pid LEVEL component: message` | `hdfs_parser.py` |
-| BGL     | `label unix_ts date node precise_ts node cat comp level message` | `bgl_parser.py` |
+| Dataset | Log Format                                                        | Parser           |
+|---------|-------------------------------------------------------------------|------------------|
+| HDFS_v1 | `YYMMDD HHMMSS pid LEVEL component: message`                     | `hdfs_parser.py` |
+| BGL     | `label unix_ts date node precise_ts node cat comp level message`  | `bgl_parser.py`  |
 
 ### Testing dataset endpoints
 
@@ -200,7 +216,7 @@ List available datasets:
 curl http://localhost:8000/api/datasets
 ```
 
-Preview 200 lines of HDFS:
+Preview 200 lines of HDFS (default model: Transformer Encoder):
 
 ```bash
 curl -X POST http://localhost:8000/api/datasets/preview \
@@ -208,13 +224,23 @@ curl -X POST http://localhost:8000/api/datasets/preview \
   -d '{"dataset_name": "HDFS_v1", "max_lines": 200}'
 ```
 
-Preview 500 lines of BGL:
+Preview HDFS with LogBERT:
 
 ```bash
 curl -X POST http://localhost:8000/api/datasets/preview \
   -H "Content-Type: application/json" \
-  -d '{"dataset_name": "BGL", "max_lines": 500}'
+  -d '{"dataset_name": "HDFS_v1", "max_lines": 200, "model_name": "logbert_hdfs"}'
 ```
+
+Preview BGL with LogBERT:
+
+```bash
+curl -X POST http://localhost:8000/api/datasets/preview \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_name": "BGL", "max_lines": 200, "start_line": 75051, "model_name": "logbert_bgl"}'
+```
+
+If `model_name` is omitted, the backend resolves the dataset's default model (HDFS -> Transformer Encoder, BGL -> Transformer Encoder).
 
 ### Custom dataset path
 
@@ -250,52 +276,68 @@ Generic upload parsing supports:
 - UUIDs masked as `<UUID>`
 - Log levels standardized to uppercase
 
+### Benchmark Demo UI
+
+The app is designed for thesis presentation with a clear two-track interface:
+
+**Benchmark Demo** (primary):
+- Curated sample presets per dataset (Mixed, Anomaly-Heavy, Normal-Heavy) for repeatable demos
+- Model selection per dataset (Transformer Encoder or LogBERT)
+- Compact metadata strip on results page (dataset, model, scope, threshold, sample, line range)
+- Score-vs-threshold visualization in the detail panel
+- Lightweight scope context ("why this was flagged") per entry
+
+**Custom Log Inspection** (secondary, collapsible):
+- Upload any log file for parsing and inspection
+- No trained model inference on arbitrary uploads
+
 ### Dashboard
-- Summary stat cards (total, parsed, failed, errors, warnings, info)
-- Log level distribution bar chart
-- Source/component distribution chart
-- Searchable, filterable, sortable log table
-- Click-to-inspect entry details drawer
+- Anomaly detection summary card with model name, anomaly count, and rate
+- Searchable, filterable, sortable log table with AI prediction column
+- Click-to-inspect detail panel with raw line, extracted fields, normalized pattern, and AI analysis
+- Collapsible parsing details (summary cards, log level chart, source chart)
 - Export parsed logs as JSON
 - Dark/light theme toggle
 
-### AI Anomaly Detection (HDFS)
+### Anomaly Detection
 
-The first trained model — a Transformer Encoder for HDFS log anomaly detection — is fully integrated:
+Four trained models are integrated into the app, covering two datasets and two architectures:
 
-- **HDFS dataset preview** automatically runs inference through the trained model
-- The model predicts **per HDFS block session** (all log lines in the same block share one score)
-- Real values are populated on each log entry:
-  - `anomaly_score`: float 0–1 (probability from the model)
-  - `prediction`: `"normal"` or `"anomaly"`
-  - `model_name`: `"transformer_encoder"`
-  - `inference_status`: `"completed"` for HDFS entries, `"not_run"` for other data
+| Model                       | Dataset | Threshold |     F1 | Precision | Recall | ROC-AUC |
+|-----------------------------|---------|-----------|--------|-----------|--------|---------|
+| Transformer Encoder (HDFS)  | HDFS_v1 |       0.5 | 99.35% |    98.77% | 99.94% |  99.99% |
+| LogBERT (HDFS)              | HDFS_v1 |       0.5 | 99.56% |    99.12% |   100% |  99.99% |
+| Transformer Encoder (BGL)   | BGL     |       0.8 | 93.85% |    97.90% | 90.11% |  99.78% |
+| LogBERT (BGL)               | BGL     |       0.8 | 94.49% |    98.64% | 90.68% |  99.81% |
 
-The trained checkpoint lives at `ml/artifacts/hdfs/checkpoints/fourth_run/best_model.pt` (test F1 = 0.993, ROC-AUC = 0.9999). It is lazy-loaded on the first HDFS preview request and cached in memory.
+Prediction granularity:
+- **HDFS** -- per block-session (all log lines sharing a `blk_*` ID get the same score)
+- **BGL** -- per sliding window (consecutive groups of 50 lines)
 
-**Scope**: Inference currently supports HDFS benchmark-aligned data only. Uploaded generic logs and BGL previews keep `inference_status = "not_run"` — the model does not produce misleading predictions for unsupported data.
+The benchmark demo UI offers curated sample presets per dataset (Mixed, Anomaly-Heavy, Normal-Heavy) so demos are repeatable and meaningful. Users select a dataset, model, and sample preset, then run real inference. A compact metadata strip at the top of the results page shows the full run context (dataset, model, scope, threshold, sample, line range) for easy screenshots. Custom uploads get parsing and inspection only (no inference). Models are lazy-loaded on first request and cached in memory. Thresholds are centralized in `inference_config.py` and surfaced in the API response.
 
 ## ML Pipeline
 
 The offline ML pipeline lives in `ml/` and handles preprocessing, training, and evaluation separately from the web app. See [`ml/README.md`](ml/README.md) for full documentation.
 
-```
-Preprocessing:  Event_traces.csv → template vocab → padded integer sequences → train/val/test splits
-Training:       Transformer Encoder → BCEWithLogitsLoss (pos_weight ~33x) → best checkpoint (F1-based)
-Inference:      HDFS preview → extract block IDs → look up event sequences → model forward → annotate entries
-```
+Two model architectures across two datasets:
 
-### Adding a New Model
+**Transformer Encoder** -- one-stage supervised training. Log-template embeddings pass through a Transformer encoder, are mean-pooled, and classified with binary cross-entropy.
 
-1. Create a class extending `AnalyzerBase` in `backend/app/services/`
-2. Implement `analyze()` and `model_info()`
-3. Register it in `ModelRegistry.__init__`
-4. The API and frontend will pick it up automatically
+**LogBERT** -- two-phase training. Phase 1: self-supervised Masked Log Key Prediction (MLKP) pre-trains the encoder on unlabelled sequences. Phase 2: supervised fine-tuning adds a `[CLS]`-based classification head for anomaly detection.
+
+Both architectures consume the same preprocessing artifacts per dataset (`template_vocab.json`, `metadata.json`, `{split}_{sequences,labels}.npy`). Training and evaluation scripts are dataset-agnostic -- only `--artifacts-dir` and `--output-dir` differ between runs.
+
+```
+ml/artifacts/
+├── hdfs/              # HDFS preprocessing + Transformer Encoder checkpoints
+├── hdfs_logbert/      # LogBERT HDFS checkpoints
+├── bgl/               # BGL preprocessing + Transformer Encoder checkpoints
+└── bgl_logbert/       # LogBERT BGL checkpoints
+```
 
 ## Future Roadmap
 
-1. **LogBERT** — Add as a second model option
-2. **BGL inference** — Train and integrate a BGL-specific model
-3. **Model comparison mode** — Side-by-side results from multiple models
-4. **Attention visualization** — Explainability for model predictions
-5. **Generalized inference** — Template matching for arbitrary uploaded logs
+1. **Model comparison mode** -- Side-by-side results from multiple models in the UI
+2. **Generalized inference** -- Template matching for arbitrary uploaded logs
+3. **Attention visualization** -- Explainability for model predictions

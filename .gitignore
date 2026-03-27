@@ -55,6 +55,8 @@ ml/artifacts/**/*.npy
 !ml/artifacts/**/best_model.pt
 !ml/artifacts/**/training_history.json
 !ml/artifacts/**/eval_results.json
+!ml/artifacts/**/pretrained.pt
+!ml/artifacts/**/pretrain_history.json
 
 # Testing
 .coverage

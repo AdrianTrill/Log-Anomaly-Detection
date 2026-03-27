@@ -20,26 +20,41 @@ ml/
 │   └── sequence_builder.py         # Shared: encoding, stratified splitting (+ HDFS trace loading)
 ├── models/
 │   ├── __init__.py
-│   └── transformer_encoder.py      # Shared: LogAnomalyTransformer model
+│   ├── transformer_encoder.py      # LogAnomalyTransformer (supervised baseline)
+│   └── logbert.py                  # LogBERT (MLM pre-train + supervised fine-tune)
 ├── training/
 │   ├── __init__.py
-│   ├── train_transformer.py        # Shared: training script with CLI (--artifacts-dir)
-│   └── evaluate.py                 # Shared: test-set evaluation script
+│   ├── train_transformer.py        # Transformer Encoder training
+│   ├── evaluate.py                 # Transformer Encoder evaluation
+│   ├── train_logbert.py            # LogBERT two-phase training (MLM + fine-tune)
+│   └── evaluate_logbert.py         # LogBERT evaluation
 ├── utils/
 │   ├── __init__.py
 │   ├── dataset.py                  # Shared: PyTorch Dataset wrappers
 │   └── metrics.py                  # Shared: P/R/F1/AUC/CM computation
 └── artifacts/
-    ├── hdfs/                       # HDFS artifacts
+    ├── hdfs/                       # HDFS preprocessing artifacts (shared by all models)
     │   ├── template_vocab.json
     │   ├── metadata.json
     │   ├── {train,val,test}_{sequences,labels}.npy
-    │   └── checkpoints/
-    └── bgl/                        # BGL artifacts
-        ├── template_vocab.json
-        ├── metadata.json
-        ├── {train,val,test}_{sequences,labels}.npy
-        └── checkpoints/
+    │   └── checkpoints/            # Transformer Encoder checkpoints
+    ├── hdfs_logbert/               # LogBERT HDFS checkpoints (separate from TE)
+    │   ├── pretrained.pt           # MLM pre-trained encoder
+    │   ├── best_model.pt           # Fine-tuned classification model
+    │   ├── pretrain_history.json
+    │   ├── training_history.json
+    │   └── eval_results.json
+    ├── bgl/                        # BGL preprocessing artifacts (shared by TE + LogBERT)
+    │   ├── template_vocab.json
+    │   ├── metadata.json
+    │   ├── {train,val,test}_{sequences,labels}.npy
+    │   └── checkpoints/            # Transformer Encoder checkpoints
+    └── bgl_logbert/                # LogBERT BGL checkpoints (separate from TE)
+        ├── pretrained.pt           # MLM pre-trained encoder
+        ├── best_model.pt           # Fine-tuned classification model
+        ├── pretrain_history.json
+        ├── training_history.json
+        └── eval_results.json
 ```
 
 ---
@@ -50,9 +65,12 @@ The pipeline supports multiple benchmark datasets through a shared core and data
 
 | Component | Scope | Description |
 |-----------|-------|-------------|
-| `LogAnomalyTransformer` | Shared | Same model architecture for all datasets |
-| `train_transformer.py` | Shared | Parameterized by `--artifacts-dir` and `--output-dir` |
-| `evaluate.py` | Shared | Parameterized by `--artifacts-dir` and `--checkpoint` |
+| `LogAnomalyTransformer` | Model 1 | Supervised Transformer Encoder baseline |
+| `LogBERT` | Model 2 | BERT-style: MLM pre-training + supervised fine-tuning |
+| `train_transformer.py` | Model 1 | Parameterized by `--artifacts-dir` and `--output-dir` |
+| `evaluate.py` | Model 1 | Parameterized by `--artifacts-dir` and `--checkpoint` |
+| `train_logbert.py` | Model 2 | Two-phase training: MLM pre-train then classification fine-tune |
+| `evaluate_logbert.py` | Model 2 | Evaluation using fine-tuned LogBERT checkpoint |
 | `dataset.py` | Shared | Generic PyTorch Dataset wrappers |
 | `metrics.py` | Shared | Binary classification metrics |
 | `template_builder.py` | Shared | `save_vocab()` / `load_vocab()` reused by both pipelines |
@@ -60,7 +78,7 @@ The pipeline supports multiple benchmark datasets through a shared core and data
 | `preprocess_hdfs.py` | HDFS only | Uses Loghub preprocessed CSVs |
 | `preprocess_bgl.py` | BGL only | Two-pass streaming from raw BGL.log |
 
-Each dataset produces the same artifact layout (`template_vocab.json`, `metadata.json`, `{split}_{sequences,labels}.npy`) under its own `ml/artifacts/{dataset}/` directory.  The training and evaluation scripts accept any artifact directory.
+Each dataset produces the same artifact layout (`template_vocab.json`, `metadata.json`, `{split}_{sequences,labels}.npy`) under its own `ml/artifacts/{dataset}/` directory.  Both models consume the same preprocessing artifacts — LogBERT does not need separate preprocessing.
 
 ---
 
@@ -106,6 +124,56 @@ backend/venv/bin/python3 -m ml.training.evaluate \
     --artifacts-dir ml/artifacts/bgl \
     --checkpoint ml/artifacts/bgl/checkpoints/best_model.pt
 ```
+
+### LogBERT (HDFS)
+
+```bash
+# Train (both phases: MLM pre-training + supervised fine-tuning)
+backend/venv/bin/python3 -m ml.training.train_logbert \
+    --artifacts-dir ml/artifacts/hdfs \
+    --output-dir ml/artifacts/hdfs_logbert \
+    --pretrain-epochs 20 --finetune-epochs 10 --batch-size 512
+
+# Re-run fine-tuning only (skip MLM pre-training, reuse pretrained.pt)
+backend/venv/bin/python3 -m ml.training.train_logbert \
+    --artifacts-dir ml/artifacts/hdfs \
+    --output-dir ml/artifacts/hdfs_logbert \
+    --skip-pretrain --finetune-epochs 10
+
+# Evaluate
+backend/venv/bin/python3 -m ml.training.evaluate_logbert \
+    --artifacts-dir ml/artifacts/hdfs \
+    --checkpoint ml/artifacts/hdfs_logbert/best_model.pt
+```
+
+### LogBERT (BGL)
+
+```bash
+# Train (both phases: MLM pre-training + supervised fine-tuning)
+backend/venv/bin/python3 -m ml.training.train_logbert \
+    --artifacts-dir ml/artifacts/bgl \
+    --output-dir ml/artifacts/bgl_logbert \
+    --pretrain-epochs 20 --finetune-epochs 10 --batch-size 512
+
+# Re-run fine-tuning only (skip MLM pre-training, reuse pretrained.pt)
+backend/venv/bin/python3 -m ml.training.train_logbert \
+    --artifacts-dir ml/artifacts/bgl \
+    --output-dir ml/artifacts/bgl_logbert \
+    --skip-pretrain --finetune-epochs 10
+
+# Evaluate
+backend/venv/bin/python3 -m ml.training.evaluate_logbert \
+    --artifacts-dir ml/artifacts/bgl \
+    --checkpoint ml/artifacts/bgl_logbert/best_model.pt
+
+# Evaluate at different threshold
+backend/venv/bin/python3 -m ml.training.evaluate_logbert \
+    --artifacts-dir ml/artifacts/bgl \
+    --checkpoint ml/artifacts/bgl_logbert/best_model.pt \
+    --threshold 0.8
+```
+
+### Saving separate runs
 
 The only difference between datasets is the two path arguments (`--artifacts-dir` and `--output-dir` / `--checkpoint`). To save a separate training run without overwriting, change `--output-dir`:
 
@@ -530,39 +598,181 @@ Saved under `ml/artifacts/{dataset}/checkpoints/`:
 
 ---
 
+## LogBERT Training & Evaluation
+
+### What is LogBERT?
+
+LogBERT is the second anomaly detection model in this project, providing a comparison against the Transformer Encoder baseline.  While the Transformer Encoder is a **one-stage supervised classifier** (embeddings → encoder → mean pool → BCE loss), LogBERT uses a **two-phase approach** inspired by BERT:
+
+1. **Phase 1 — Masked Log Key Prediction (MLM pre-training):** Randomly mask template IDs in log sequences and train the encoder to reconstruct them.  This learns general log pattern representations without any labels.
+2. **Phase 2 — Supervised fine-tuning:** Load the pre-trained encoder, add a classification head, and fine-tune with BCEWithLogitsLoss on labeled data.
+
+The thesis value is in comparing whether self-supervised pre-training on log sequences improves anomaly detection over training from scratch.
+
+### Key Differences from Transformer Encoder
+
+| Aspect | Transformer Encoder | LogBERT |
+|--------|-------------------|---------|
+| Training | One-stage supervised | Two-phase: MLM pre-train → supervised fine-tune |
+| Special tokens | None (PAD + events + UNK) | `[MASK]` and `[CLS]` added internally |
+| Effective vocab | 31 (HDFS) | 33 (31 + MASK + CLS) |
+| Pooling | Mean pooling over non-PAD | CLS token output |
+| Heads | Single classification head | MLM head (pre-training) + classification head (fine-tuning) |
+| Pre-training | None | Masked token prediction on all training sequences |
+
+Both models use the same encoder architecture (TransformerEncoderLayer, pre-norm, batch_first) and consume the exact same preprocessing artifacts.
+
+### LogBERT Architecture
+
+```
+Input (batch, seq_len)  integer token IDs
+        │
+  [CLS] Prepend         (batch, seq_len) → (batch, seq_len + 1)
+        │
+  Token Embedding   nn.Embedding(vocab_size + 2, d_model, padding_idx=0)
+        +
+  Position Embedding nn.Embedding(max_seq_len + 1, d_model)
+        │
+  LayerNorm + Dropout
+        │
+  TransformerEncoder (N layers, H heads, pre-norm)
+        │
+        ├── forward_mlm():  MLM Head → (batch, seq_len+1, vocab) token logits
+        │                   Loss on masked positions only (CrossEntropyLoss)
+        │
+        └── forward_cls():  CLS output → Linear(d_model, 1) → (batch,) logit
+                            Binary classification (BCEWithLogitsLoss)
+```
+
+The MLM head is a two-layer projection: `Linear → GELU → LayerNorm → Linear`.
+
+### Data Reuse
+
+LogBERT uses the **exact same** preprocessing artifacts as the Transformer Encoder for each dataset — no new preprocessing is needed. The `train_logbert.py` and `evaluate_logbert.py` scripts are fully dataset-agnostic; the only difference between HDFS and BGL is the `--artifacts-dir` argument.
+
+**HDFS:**
+- `ml/artifacts/hdfs/template_vocab.json` (31-token vocab; LogBERT extends internally to 33)
+- `ml/artifacts/hdfs/metadata.json` (reads `vocab_size`, `max_seq_len`)
+- `ml/artifacts/hdfs/{train,val,test}_{sequences,labels}.npy`
+
+**BGL:**
+- `ml/artifacts/bgl/template_vocab.json` (302-token vocab; LogBERT extends internally to 304)
+- `ml/artifacts/bgl/metadata.json` (reads `vocab_size`, `max_seq_len`)
+- `ml/artifacts/bgl/{train,val,test}_{sequences,labels}.npy`
+
+### How to Train LogBERT
+
+From the **project root**:
+
+```bash
+python3 -m ml.training.train_logbert \
+    --artifacts-dir ml/artifacts/hdfs \
+    --output-dir ml/artifacts/hdfs_logbert \
+    --pretrain-epochs 20 \
+    --finetune-epochs 10 \
+    --batch-size 512
+```
+
+This runs both phases sequentially:
+1. MLM pre-training (saves `pretrained.pt` + `pretrain_history.json`)
+2. Loads the best pre-trained weights, reinitializes the classification head, fine-tunes (saves `best_model.pt` + `training_history.json`)
+
+To **skip Phase 1** and re-run only fine-tuning (e.g. with different hyperparameters):
+
+```bash
+python3 -m ml.training.train_logbert \
+    --artifacts-dir ml/artifacts/hdfs \
+    --output-dir ml/artifacts/hdfs_logbert \
+    --skip-pretrain \
+    --finetune-epochs 15 \
+    --finetune-lr 1e-4
+```
+
+### LogBERT CLI Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--artifacts-dir` | `ml/artifacts/hdfs` | Input preprocessing artifacts |
+| `--output-dir` | `ml/artifacts/hdfs_logbert` | Output directory for checkpoints |
+| `--batch-size` | 512 | Batch size for both phases |
+| `--d-model` | 64 | Embedding / encoder dimension |
+| `--nhead` | 4 | Attention heads |
+| `--num-layers` | 2 | Encoder layers |
+| `--dim-feedforward` | 128 | Feed-forward dimension |
+| `--dropout` | 0.1 | Dropout rate |
+| `--pretrain-lr` | 1e-3 | Learning rate for MLM pre-training |
+| `--finetune-lr` | 5e-4 | Learning rate for fine-tuning (lower to preserve pre-trained features) |
+| `--weight-decay` | 1e-4 | AdamW weight decay |
+| `--pretrain-epochs` | 20 | MLM pre-training epochs |
+| `--finetune-epochs` | 10 | Supervised fine-tuning epochs |
+| `--mask-ratio` | 0.15 | Fraction of non-PAD tokens masked for MLM |
+| `--skip-pretrain` | flag | Skip Phase 1, load existing `pretrained.pt` |
+
+### How to Evaluate LogBERT
+
+```bash
+python3 -m ml.training.evaluate_logbert \
+    --artifacts-dir ml/artifacts/hdfs \
+    --checkpoint ml/artifacts/hdfs_logbert/best_model.pt
+```
+
+Supports `--threshold` (default 0.5) for direct comparison with the Transformer Encoder.
+
+### LogBERT Output Artifacts
+
+Saved to `ml/artifacts/hdfs_logbert/` (HDFS) or `ml/artifacts/bgl_logbert/` (BGL):
+
+| File | Phase | Description |
+|------|-------|-------------|
+| `pretrained.pt` | 1 (MLM) | Encoder weights after MLM pre-training |
+| `pretrain_history.json` | 1 (MLM) | Per-epoch: train_loss, val_loss, val_mask_accuracy |
+| `best_model.pt` | 2 (fine-tune) | Full model: encoder + cls_head + config + metadata |
+| `training_history.json` | 2 (fine-tune) | Per-epoch: train_loss, val_loss, val_P/R/F1/accuracy/AUC |
+| `eval_results.json` | eval | Test metrics: P/R/F1/accuracy/AUC + confusion matrix |
+
+---
+
 ## Stage 3 — Backend & Frontend Integration (Completed)
 
-Both HDFS and BGL Transformer Encoder checkpoints are wired into the FastAPI backend with dataset-specific inference services and thresholds.
+Four model checkpoints are wired into the FastAPI backend with dataset-specific inference services, thresholds, and a model selection mechanism in the frontend.
 
-**Centralized configuration** (`backend/app/core/inference_config.py`):
+**Centralized configuration** (`backend/app/core/inference_config.py`) — keyed by model identifier:
 
-| Dataset | Checkpoint | Threshold | Scope | Model Name |
-|---------|-----------|-----------|-------|------------|
-| HDFS | `ml/artifacts/hdfs/checkpoints/fourth_run-BEST/best_model.pt` | 0.5 | `hdfs_block_session` | `transformer_encoder_hdfs` |
-| BGL | `ml/artifacts/bgl/checkpoints/fourth_run-BEST/best_model.pt` | 0.8 | `bgl_sliding_window` | `transformer_encoder_bgl` |
+| Model | Checkpoint | Threshold | Scope | Dataset |
+|-------|-----------|-----------|-------|---------|
+| `transformer_encoder_hdfs` | `ml/artifacts/hdfs/checkpoints/fourth_run-BEST/best_model.pt` | 0.5 | `hdfs_block_session` | HDFS |
+| `transformer_encoder_bgl` | `ml/artifacts/bgl/checkpoints/fourth_run-BEST/best_model.pt` | 0.8 | `bgl_sliding_window` | BGL |
+| `logbert_hdfs` | `ml/artifacts/hdfs_logbert/checkpoints/third_run-BEST/best_model.pt` | 0.5 | `hdfs_block_session` | HDFS |
+| `logbert_bgl` | `ml/artifacts/bgl_logbert/checkpoints/second_run-BEST/best_model.pt` | 0.8 | `bgl_sliding_window` | BGL |
 
-**HDFS inference flow:**
+**Model selection:** The frontend passes an optional `model_name` in the dataset preview request. If omitted, the backend resolves the dataset's default model (HDFS → `transformer_encoder_hdfs`, BGL → `transformer_encoder_bgl`).
 
-1. User previews the HDFS dataset in the web app
-2. Backend parses and normalizes the raw log lines (existing flow)
-3. `HdfsInferenceService` extracts block IDs (`blk_*`) from each entry
+**HDFS inference flow** (shared by both Transformer Encoder and LogBERT):
+
+1. User selects HDFS dataset and model (Transformer Encoder or LogBERT) in the benchmark demo
+2. Backend parses and normalizes the raw log lines
+3. The selected inference service extracts block IDs (`blk_*`) from each entry
 4. Looks up the full event sequence per block from `Event_traces.csv`
 5. Encodes sequences using `template_vocab.json` with `max_seq_len=50`
-6. Runs batch inference (lazy-loaded on first request)
+6. Runs batch inference through the selected model (lazy-loaded on first request)
 7. Maps block-level scores back to all log entries belonging to that block
 
-**BGL inference flow:**
+The only model-level difference is that LogBERT uses `forward_cls()` (CLS-based pooling) while the Transformer Encoder uses `forward()` (mean pooling).
 
-1. User previews the BGL dataset in the web app
-2. Backend parses and normalizes the raw log lines (existing flow)
-3. `BglInferenceService` normalizes each message using the same BGL regex patterns from preprocessing
+**BGL inference flow** (shared by both Transformer Encoder and LogBERT):
+
+1. User selects BGL dataset and model (Transformer Encoder or LogBERT) in the benchmark demo
+2. Backend parses and normalizes the raw log lines
+3. The selected inference service normalizes each message using the same BGL regex patterns from preprocessing
 4. Maps normalized messages to template IDs via `template_vocab.json`
 5. Groups entries into non-overlapping sliding windows of size 50
-6. Runs batch inference (lazy-loaded on first request)
+6. Runs batch inference through the selected model (lazy-loaded on first request)
 7. Maps window-level scores back to all log entries in each window
 8. Trailing entries that don't fill a complete window get `inference_status = "not_run"`
 
-**Frontend** displays real `anomaly_score`, `prediction`, and `inference_status` through the existing AI fields, with dataset-specific model names and scope notes.
+The only model-level difference is that LogBERT uses `forward_cls()` (CLS-based pooling) while the Transformer Encoder uses `forward()` (mean pooling) — same distinction as HDFS.
+
+**Frontend** displays real `anomaly_score`, `prediction`, and `inference_status` through the existing AI fields. The model selector appears for both HDFS and BGL (each offers Transformer Encoder / LogBERT).
 
 **Limitations:**
 - Inference is benchmark-aligned only — non-HDFS/BGL data gets `inference_status = "not_run"`
@@ -571,6 +781,6 @@ Both HDFS and BGL Transformer Encoder checkpoints are wired into the FastAPI bac
 
 ## What Comes Next
 
-1. **LogBERT** — Add as a second model architecture for comparison
+1. **Model comparison mode** — Side-by-side model output comparison in the UI
 2. **Generalized inference** — Template matching for arbitrary uploaded logs
 3. **Attention visualization** — Explainability for model predictions

@@ -266,7 +266,7 @@ def _create_service() -> BglInferenceService:
     from app.core.config import _PROJECT_ROOT
     from app.core.inference_config import get_config
 
-    cfg = get_config("BGL")
+    cfg = get_config("transformer_encoder_bgl")
     return BglInferenceService(
         checkpoint_path=cfg["checkpoint"],
         vocab_path=cfg["vocab"],

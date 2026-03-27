@@ -33,6 +33,17 @@ export interface InferenceSummary {
   anomalies_detected: number;
   status: string;
   scope: string;
+  threshold?: number;
+  dataset?: string;
+}
+
+export interface RunContext {
+  datasetName: string;
+  datasetLabel: string;
+  presetLabel: string;
+  modelId: string;
+  startLine: number;
+  lineCount: number;
 }
 
 export interface UploadResponse {
@@ -87,6 +98,7 @@ export interface DatasetPreviewRequest {
   dataset_name: string;
   max_lines: number;
   start_line?: number;
+  model_name?: string;
 }
 
 export type LogLevel = "ERROR" | "WARN" | "WARNING" | "INFO" | "DEBUG" | "FATAL" | "CRITICAL" | "TRACE";

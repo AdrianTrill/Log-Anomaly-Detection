@@ -18,14 +18,17 @@ import { FileDropzone } from "@/components/upload/FileDropzone";
 import { SampleDataButton } from "@/components/upload/SampleDataButton";
 import { DatasetPreview } from "@/components/upload/DatasetPreview";
 import { DashboardView } from "@/components/dashboard/DashboardView";
+import { RunMetaStrip } from "@/components/dashboard/RunMetaStrip";
 import { uploadLogFile } from "@/lib/api";
-import type { UploadResponse } from "@/types/log";
+import { formatModelName } from "@/lib/inference";
+import type { UploadResponse, RunContext } from "@/types/log";
 
 type DataSource = "upload" | "sample" | "dataset";
 
 interface ResultMeta {
   source: DataSource;
   data: UploadResponse;
+  context?: RunContext;
 }
 
 export default function HomePage() {
@@ -71,8 +74,8 @@ export default function HomePage() {
       .finally(() => setUploading(false));
   }, []);
 
-  const handleDatasetResult = useCallback((data: UploadResponse) => {
-    setResult({ source: "dataset", data });
+  const handleDatasetResult = useCallback((data: UploadResponse, context: RunContext) => {
+    setResult({ source: "dataset", data, context });
     setError("");
   }, []);
 
@@ -85,33 +88,36 @@ export default function HomePage() {
 
   /* ─── Dashboard view ─── */
   if (result) {
-    const { source, data } = result;
+    const { source, data, context } = result;
+    const isBenchmark = source === "dataset" && !!context;
 
-    const sourceLabel = source === "dataset"
-      ? "Benchmark"
+    const headerLabel = isBenchmark
+      ? `${context.datasetLabel} \u2014 ${formatModelName(data.inference_summary?.model_name ?? context.modelId)}`
       : source === "sample"
-        ? "Sample"
-        : "Upload";
+        ? "Sample Log"
+        : data.file_name;
 
     return (
       <div className="container px-6 mx-auto py-8">
-        <div className="flex items-center justify-between gap-4 mb-8">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 min-w-0">
             <Badge
-              variant={source === "dataset" ? "default" : "secondary"}
+              variant={isBenchmark ? "default" : "secondary"}
               className="text-[10px] gap-1 py-0.5 shrink-0"
             >
-              {source === "dataset" ? (
+              {isBenchmark ? (
                 <FlaskConical className="h-3 w-3" />
               ) : (
                 <Upload className="h-3 w-3" />
               )}
-              {sourceLabel}
+              {isBenchmark ? "Benchmark" : source === "sample" ? "Sample" : "Upload"}
             </Badge>
-            <span className="text-sm font-medium truncate">{data.file_name}</span>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {data.total_lines.toLocaleString()} lines
-            </span>
+            <span className="text-sm font-medium truncate">{headerLabel}</span>
+            {!isBenchmark && (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {data.total_lines.toLocaleString()} lines
+              </span>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -123,7 +129,17 @@ export default function HomePage() {
             Reset
           </Button>
         </div>
-        <DashboardView data={data} />
+
+        {isBenchmark && (
+          <div className="mb-6">
+            <RunMetaStrip
+              context={context}
+              inferenceSummary={data.inference_summary ?? null}
+            />
+          </div>
+        )}
+
+        <DashboardView data={data} isBenchmark={isBenchmark} />
       </div>
     );
   }
@@ -153,7 +169,7 @@ export default function HomePage() {
                 Benchmark Demo
               </CardTitle>
               <p className="text-[11px] text-muted-foreground/70 mt-1">
-                Choose a dataset, pick a demo size, and run real anomaly inference.
+                Run trained anomaly detection models on benchmark log datasets (HDFS, BGL).
               </p>
             </CardHeader>
             <CardContent className="px-5 pb-5">
@@ -177,7 +193,7 @@ export default function HomePage() {
                 <div>
                   <span className="text-sm font-semibold text-muted-foreground">Custom Log Inspection</span>
                   <p className="text-[10px] text-muted-foreground/40 mt-0.5">
-                    Upload any log file for parsing and exploration
+                    Upload any log file for parsing and inspection &mdash; no trained model inference
                   </p>
                 </div>
               </div>
@@ -218,7 +234,7 @@ export default function HomePage() {
                 </div>
 
                 <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
-                  Custom uploads support parsing, normalization, and inspection. Trained anomaly inference is available for benchmark datasets above.
+                  Custom uploads are parsed and inspected only. Trained anomaly detection models are not applied to arbitrary uploads &mdash; use the benchmark demo above for model inference.
                 </p>
               </CardContent>
             )}

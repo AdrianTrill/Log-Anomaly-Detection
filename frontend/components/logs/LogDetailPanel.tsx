@@ -14,11 +14,15 @@ import {
   PREDICTION_LABEL,
   ANOMALY_COLORS,
   NORMAL_COLORS,
+  getScopeContext,
+  getDefaultThreshold,
+  formatThreshold,
 } from "@/lib/inference";
 
 interface LogDetailPanelProps {
   entry: LogEntry;
   onClose: () => void;
+  threshold?: number | null;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -70,7 +74,7 @@ function StageHeader({
   );
 }
 
-export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
+export function LogDetailPanel({ entry, onClose, threshold: externalThreshold }: LogDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,6 +83,9 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
 
   const levelColor = entry.level ? LOG_LEVEL_COLORS[entry.level] || "" : "";
   const showParseStatus = entry.parse_status !== "parsed";
+  const isCompleted = entry.inference_status === "completed";
+  const resolvedThreshold = externalThreshold ?? getDefaultThreshold(entry.model_name);
+  const scopeContext = getScopeContext(entry.model_name);
 
   return (
     <div
@@ -207,8 +214,17 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
             description="Anomaly detection inference"
             badge={<InferenceStatusBadge status={entry.inference_status} />}
           />
+
+          {isCompleted && entry.anomaly_score !== null && resolvedThreshold !== null && (
+            <ScoreBar
+              score={entry.anomaly_score}
+              threshold={resolvedThreshold}
+              prediction={entry.prediction}
+            />
+          )}
+
           <div className={`rounded-md border p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 ${
-            entry.inference_status === "completed"
+            isCompleted
               ? "border-border/50 bg-muted/25"
               : "border-dashed border-border/50 bg-muted/15"
           }`}>
@@ -219,9 +235,58 @@ export function LogDetailPanel({ entry, onClose }: LogDetailPanelProps) {
             <FieldCard label="Prediction" value={
               entry.prediction ? <PredictionBadge prediction={entry.prediction} /> : null
             } />
-            <FieldCard label="Explanation" value={entry.explanation} />
+            <FieldCard label="Threshold" value={
+              resolvedThreshold !== null
+                ? <span className="text-xs font-mono">{formatThreshold(resolvedThreshold)}</span>
+                : null
+            } />
           </div>
+
+          {isCompleted && scopeContext && (
+            <p className="text-[10px] text-muted-foreground/50 mt-2.5 leading-relaxed">
+              {scopeContext}
+            </p>
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreBar({
+  score,
+  threshold,
+  prediction,
+}: {
+  score: number;
+  threshold: number;
+  prediction: string | null;
+}) {
+  const isAnomaly = prediction === "anomaly";
+  const pct = Math.min(score * 100, 100);
+  const thresholdPct = Math.min(threshold * 100, 100);
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] font-medium text-muted-foreground/50 uppercase tracking-widest">
+          Score vs Threshold
+        </span>
+        <span className={`text-[10px] font-mono font-medium ${isAnomaly ? ANOMALY_COLORS.text : NORMAL_COLORS.text}`}>
+          {formatScore(score)}% / {formatScore(threshold)}%
+        </span>
+      </div>
+      <div className="relative h-2 rounded-full bg-muted/50 border border-border/30 overflow-hidden">
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full transition-all ${
+            isAnomaly ? "bg-red-500/70" : "bg-emerald-500/70"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+        <div
+          className="absolute inset-y-0 w-px bg-foreground/40"
+          style={{ left: `${thresholdPct}%` }}
+        />
       </div>
     </div>
   );
@@ -274,7 +339,7 @@ function FieldCard({
         {label}
       </p>
       <div className={`text-xs leading-snug ${mono ? "font-mono" : ""}`}>
-        {value || <span className="text-muted-foreground/50">—</span>}
+        {value || <span className="text-muted-foreground/50">&mdash;</span>}
       </div>
     </div>
   );

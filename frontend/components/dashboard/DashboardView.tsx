@@ -20,6 +20,7 @@ import type { UploadResponse, LogEntry } from "@/types/log";
 
 interface DashboardViewProps {
   data: UploadResponse;
+  isBenchmark?: boolean;
 }
 
 function SectionHeader({
@@ -51,7 +52,7 @@ function SectionHeader({
 
 export type AiFilter = "all" | "anomaly" | "normal";
 
-export function DashboardView({ data }: DashboardViewProps) {
+export function DashboardView({ data, isBenchmark = false }: DashboardViewProps) {
   const [search, setSearch] = useState("");
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
   const [aiFilter, setAiFilter] = useState<AiFilter>("all");
@@ -178,6 +179,7 @@ export function DashboardView({ data }: DashboardViewProps) {
             <LogDetailPanel
               entry={selectedEntry}
               onClose={() => setSelectedEntry(null)}
+              threshold={data.inference_summary?.threshold}
             />
           )}
         </div>

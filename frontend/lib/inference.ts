@@ -7,6 +7,8 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   transformer_encoder: "Transformer Encoder",
   transformer_encoder_hdfs: "Transformer Encoder (HDFS)",
   transformer_encoder_bgl: "Transformer Encoder (BGL)",
+  logbert_hdfs: "LogBERT (HDFS)",
+  logbert_bgl: "LogBERT (BGL)",
 };
 
 export function formatModelName(raw: string | null): string {
@@ -76,4 +78,43 @@ const SCOPE_NOTES: Record<string, string> = {
 export function getScopeNote(scope: string | null | undefined): string | null {
   if (!scope) return null;
   return SCOPE_NOTES[scope] ?? null;
+}
+
+// Short scope labels for metadata strip
+const SCOPE_LABELS: Record<string, string> = {
+  hdfs_block_session: "Block-session",
+  bgl_sliding_window: "Sliding-window",
+};
+
+export function getScopeLabel(scope: string | null | undefined): string {
+  if (!scope) return "Unknown";
+  return SCOPE_LABELS[scope] ?? scope;
+}
+
+// Per-entry scope context for the detail panel "why flagged" helper
+const SCOPE_CONTEXTS: Record<string, string> = {
+  hdfs_block_session:
+    "This line belongs to an HDFS block-session. All lines sharing the same block ID receive the same anomaly score from the model.",
+  bgl_sliding_window:
+    "This line is part of a 50-line sliding window. All lines in the same window share one anomaly score from the model.",
+};
+
+export function getScopeContext(modelName: string | null | undefined): string | null {
+  if (!modelName) return null;
+  if (modelName.includes("hdfs")) return SCOPE_CONTEXTS.hdfs_block_session;
+  if (modelName.includes("bgl")) return SCOPE_CONTEXTS.bgl_sliding_window;
+  return null;
+}
+
+export function formatThreshold(threshold: number | null | undefined): string {
+  if (threshold == null) return "—";
+  return threshold.toFixed(2);
+}
+
+// Derive default threshold from model name when backend value not available
+export function getDefaultThreshold(modelName: string | null | undefined): number | null {
+  if (!modelName) return null;
+  if (modelName.includes("bgl")) return 0.8;
+  if (modelName.includes("hdfs")) return 0.5;
+  return null;
 }

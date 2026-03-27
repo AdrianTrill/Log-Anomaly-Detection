@@ -39,6 +39,8 @@ class InferenceSummary(BaseModel):
     anomalies_detected: int
     status: str  # "completed", "not_available", "not_run"
     scope: str   # e.g. "hdfs_block_session"
+    threshold: Optional[float] = None
+    dataset: Optional[str] = None
 
 
 class UploadResponse(BaseModel):
@@ -98,3 +100,4 @@ class DatasetPreviewRequest(BaseModel):
     dataset_name: str
     max_lines: int = Field(default=200, ge=1, le=50000)
     start_line: int = Field(default=1, ge=1)
+    model_name: Optional[str] = None
