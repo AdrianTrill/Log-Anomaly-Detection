@@ -44,6 +44,27 @@ export interface RunContext {
   modelId: string;
   startLine: number;
   lineCount: number;
+  mode?: "single" | "compare";
+}
+
+// --- Model comparison types ---
+
+export interface ModelResult {
+  model_name: string;
+  anomaly_score: number | null;
+  prediction: string | null;
+}
+
+export interface ComparisonEntry {
+  base: LogEntry;
+  modelA: ModelResult;
+  modelB: ModelResult;
+}
+
+export interface ComparisonContext extends RunContext {
+  mode: "compare";
+  modelAId: string;
+  modelBId: string;
 }
 
 export interface UploadResponse {

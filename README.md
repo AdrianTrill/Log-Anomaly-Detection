@@ -138,13 +138,14 @@ npm run dev
 │   │   └── layout.tsx              # Root layout with theme
 │   ├── components/
 │   │   ├── ai/                     # AI summary section (model name, anomalies)
-│   │   ├── dashboard/              # Summary cards, charts, run metadata strip
+│   │   ├── dashboard/              # Summary cards, charts, run metadata, comparison view
 │   │   ├── logs/                   # Table, filters, detail panel (score bar, scope context)
 │   │   ├── upload/                 # Dataset preview (model + preset selector), file dropzone
 │   │   └── ui/                     # shadcn/ui components
 │   ├── lib/
 │   │   ├── api.ts                  # API client
 │   │   ├── inference.ts            # Model names, scope helpers, threshold formatting
+│   │   ├── comparison.ts           # Merge + agreement utilities for comparison mode
 │   │   └── utils.ts                # Shared utilities
 │   ├── types/                      # TypeScript types matching backend schemas
 │   └── package.json
@@ -276,16 +277,28 @@ Generic upload parsing supports:
 - UUIDs masked as `<UUID>`
 - Log levels standardized to uppercase
 
-### Benchmark Demo UI
+### Benchmark Evaluation UI
 
 The app is designed for thesis presentation with a clear two-track interface:
 
-**Benchmark Demo** (primary):
+**Benchmark Evaluation** (primary):
 - Curated sample presets per dataset (Mixed, Anomaly-Heavy, Normal-Heavy) for repeatable demos
 - Model selection per dataset (Transformer Encoder or LogBERT)
+- Single Model / Compare Models toggle for benchmark datasets
 - Compact metadata strip on results page (dataset, model, scope, threshold, sample, line range)
 - Score-vs-threshold visualization in the detail panel
 - Lightweight scope context ("why this was flagged") per entry
+
+**Model Comparison Mode** (benchmark only):
+- Automatic model pairing per dataset (Transformer Encoder vs LogBERT)
+- Two parallel API calls merged client-side -- no backend changes required
+- Side-by-side summary cards with threshold badges and anomaly counts
+- Agreement statistics card (Both Anomaly, Both Normal, Only TE, Only LogBERT)
+- Dual-column comparison table with compact headers (TE / LogBERT)
+- Comparison-aware filters (All, Any Anomaly, Both Anomaly, Disagree)
+- Side-by-side AI analysis in the detail panel with score-vs-threshold bars
+- Subtle left-border highlight for disagreement rows
+- Polished summary cards with stronger hierarchy: prominent anomaly counts, visible anomaly rates, integrated threshold badges, and amber disagree badges in the agreement card
 
 **Custom Log Inspection** (secondary, collapsible):
 - Upload any log file for parsing and inspection
@@ -295,6 +308,7 @@ The app is designed for thesis presentation with a clear two-track interface:
 - Anomaly detection summary card with model name, anomaly count, and rate
 - Searchable, filterable, sortable log table with AI prediction column
 - Click-to-inspect detail panel with raw line, extracted fields, normalized pattern, and AI analysis
+- Comparison detail panel with side-by-side model predictions and score bars
 - Collapsible parsing details (summary cards, log level chart, source chart)
 - Export parsed logs as JSON
 - Dark/light theme toggle
@@ -314,7 +328,7 @@ Prediction granularity:
 - **HDFS** -- per block-session (all log lines sharing a `blk_*` ID get the same score)
 - **BGL** -- per sliding window (consecutive groups of 50 lines)
 
-The benchmark demo UI offers curated sample presets per dataset (Mixed, Anomaly-Heavy, Normal-Heavy) so demos are repeatable and meaningful. Users select a dataset, model, and sample preset, then run real inference. A compact metadata strip at the top of the results page shows the full run context (dataset, model, scope, threshold, sample, line range) for easy screenshots. Custom uploads get parsing and inspection only (no inference). Models are lazy-loaded on first request and cached in memory. Thresholds are centralized in `inference_config.py` and surfaced in the API response.
+The benchmark UI offers curated sample presets per dataset (Mixed, Anomaly-Heavy, Normal-Heavy) so demos are repeatable and meaningful. In single-model mode, users select a dataset, model, and sample preset, then run real inference. In comparison mode, the frontend automatically pairs the two models for the selected dataset (Transformer Encoder vs LogBERT), fires two parallel API calls for the same data slice, and merges results client-side into a side-by-side view with agreement statistics and a dual-column comparison table. A compact metadata strip at the top of the results page shows the full run context for easy screenshots. Custom uploads get parsing and inspection only (no inference). Models are lazy-loaded on first request and cached in memory. Thresholds are centralized in `inference_config.py` and surfaced in the API response.
 
 ## ML Pipeline
 
@@ -338,6 +352,5 @@ ml/artifacts/
 
 ## Future Roadmap
 
-1. **Model comparison mode** -- Side-by-side results from multiple models in the UI
-2. **Generalized inference** -- Template matching for arbitrary uploaded logs
-3. **Attention visualization** -- Explainability for model predictions
+1. **Generalized inference** -- Template matching for arbitrary uploaded logs
+2. **Attention visualization** -- Explainability for model predictions

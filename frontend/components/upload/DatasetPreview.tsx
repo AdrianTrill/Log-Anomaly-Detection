@@ -1,16 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, AlertCircle, Play } from "lucide-react";
+import { Loader2, AlertCircle, Play, GitCompareArrows } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { fetchDatasets, previewDataset } from "@/lib/api";
-import type { DatasetInfo, UploadResponse, RunContext } from "@/types/log";
-
-// ── Curated demo presets per dataset ──
-// Each preset targets a specific anomaly composition so demos
-// are repeatable and meaningful for thesis presentation.
+import type {
+  DatasetInfo,
+  UploadResponse,
+  RunContext,
+  ComparisonContext,
+} from "@/types/log";
 
 interface PresetConfig {
   id: string;
@@ -22,50 +23,14 @@ interface PresetConfig {
 
 const PRESETS: Record<string, PresetConfig[]> = {
   HDFS_v1: [
-    {
-      id: "mixed",
-      label: "Mixed Sample",
-      description: "Balanced normal and anomalous block sessions",
-      lines: 1000,
-      startLine: 1,
-    },
-    {
-      id: "anomaly_heavy",
-      label: "Anomaly-Heavy",
-      description: "Dense anomaly region (~27% flagged)",
-      lines: 500,
-      startLine: 1,
-    },
-    {
-      id: "normal_heavy",
-      label: "Normal-Heavy",
-      description: "Predominantly normal activity",
-      lines: 500,
-      startLine: 50001,
-    },
+    { id: "mixed", label: "Mixed Sample", description: "Balanced normal and anomalous block sessions", lines: 1000, startLine: 1 },
+    { id: "anomaly_heavy", label: "Anomaly-Heavy", description: "Dense anomaly region (~27% flagged)", lines: 500, startLine: 1 },
+    { id: "normal_heavy", label: "Normal-Heavy", description: "Predominantly normal activity", lines: 500, startLine: 50001 },
   ],
   BGL: [
-    {
-      id: "mixed",
-      label: "Mixed Sample",
-      description: "Balanced normal and anomalous windows",
-      lines: 1000,
-      startLine: 14001,
-    },
-    {
-      id: "anomaly_heavy",
-      label: "Anomaly-Heavy",
-      description: "Dense anomaly region from later in the log",
-      lines: 500,
-      startLine: 75051,
-    },
-    {
-      id: "normal_heavy",
-      label: "Normal-Heavy",
-      description: "Early region with mostly normal entries",
-      lines: 500,
-      startLine: 1,
-    },
+    { id: "mixed", label: "Mixed Sample", description: "Balanced normal and anomalous windows", lines: 1000, startLine: 14001 },
+    { id: "anomaly_heavy", label: "Anomaly-Heavy", description: "Dense anomaly region from later in the log", lines: 500, startLine: 75051 },
+    { id: "normal_heavy", label: "Normal-Heavy", description: "Early region with mostly normal entries", lines: 500, startLine: 1 },
   ],
 };
 
@@ -102,18 +67,26 @@ const DATASET_MODELS: Record<string, ModelOption[]> = {
   ],
 };
 
+type BenchmarkMode = "single" | "compare";
+
 interface DatasetPreviewProps {
   onResult: (data: UploadResponse, context: RunContext) => void;
+  onCompareResult: (
+    dataA: UploadResponse,
+    dataB: UploadResponse,
+    context: ComparisonContext,
+  ) => void;
   disabled: boolean;
 }
 
-export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
+export function DatasetPreview({ onResult, onCompareResult, disabled }: DatasetPreviewProps) {
   const [datasets, setDatasets] = useState<DatasetInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [selectedDataset, setSelectedDataset] = useState("");
   const [selectedPreset, setSelectedPreset] = useState("mixed");
   const [selectedModel, setSelectedModel] = useState("");
+  const [mode, setMode] = useState<BenchmarkMode>("single");
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState("");
 
@@ -142,25 +115,52 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
     if (!selectedDataset) return;
     setPreviewing(true);
     setPreviewError("");
+
+    const meta = DATASET_META[selectedDataset];
+    const baseRequest = {
+      dataset_name: selectedDataset,
+      max_lines: preset.lines,
+      ...(preset.startLine > 1 ? { start_line: preset.startLine } : {}),
+    };
+
     try {
-      const result = await previewDataset({
-        dataset_name: selectedDataset,
-        max_lines: preset.lines,
-        ...(preset.startLine > 1 ? { start_line: preset.startLine } : {}),
-        ...(selectedModel ? { model_name: selectedModel } : {}),
-      });
+      if (mode === "compare" && models.length >= 2) {
+        const [dataA, dataB] = await Promise.all([
+          previewDataset({ ...baseRequest, model_name: models[0].id }),
+          previewDataset({ ...baseRequest, model_name: models[1].id }),
+        ]);
 
-      const meta = DATASET_META[selectedDataset];
-      const context: RunContext = {
-        datasetName: selectedDataset,
-        datasetLabel: meta?.label ?? selectedDataset,
-        presetLabel: preset.label,
-        modelId: selectedModel,
-        startLine: preset.startLine,
-        lineCount: preset.lines,
-      };
+        const context: ComparisonContext = {
+          datasetName: selectedDataset,
+          datasetLabel: meta?.label ?? selectedDataset,
+          presetLabel: preset.label,
+          modelId: models[0].id,
+          startLine: preset.startLine,
+          lineCount: preset.lines,
+          mode: "compare",
+          modelAId: models[0].id,
+          modelBId: models[1].id,
+        };
 
-      onResult(result, context);
+        onCompareResult(dataA, dataB, context);
+      } else {
+        const result = await previewDataset({
+          ...baseRequest,
+          ...(selectedModel ? { model_name: selectedModel } : {}),
+        });
+
+        const context: RunContext = {
+          datasetName: selectedDataset,
+          datasetLabel: meta?.label ?? selectedDataset,
+          presetLabel: preset.label,
+          modelId: selectedModel,
+          startLine: preset.startLine,
+          lineCount: preset.lines,
+          mode: "single",
+        };
+
+        onResult(result, context);
+      }
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Preview failed");
     } finally {
@@ -168,8 +168,7 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
     }
   };
 
-  const meta = DATASET_META[selectedDataset];
-  const dsLabel = meta?.label ?? selectedDataset;
+  const dsLabel = DATASET_META[selectedDataset]?.label ?? selectedDataset;
 
   if (loading) {
     return (
@@ -239,8 +238,42 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
         </div>
       </div>
 
-      {/* Model selector */}
+      {/* Mode selector */}
       {hasModelChoice && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Mode</p>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setMode("single")}
+              disabled={disabled || previewing}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+                mode === "single"
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border/40 text-muted-foreground hover:border-border/70 hover:text-foreground"
+              )}
+            >
+              Single Model
+            </button>
+            <button
+              onClick={() => setMode("compare")}
+              disabled={disabled || previewing}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+                mode === "compare"
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border/40 text-muted-foreground hover:border-border/70 hover:text-foreground"
+              )}
+            >
+              <GitCompareArrows className="h-3 w-3" />
+              Compare Models
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Model selector (single mode only) */}
+      {hasModelChoice && mode === "single" && (
         <div className="space-y-1.5">
           <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Model</p>
           <div className="flex gap-1.5">
@@ -263,6 +296,19 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Compare pair label (compare mode only) */}
+      {hasModelChoice && mode === "compare" && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Model Pair</p>
+          <p className="text-xs text-foreground/70">
+            {models[0]?.label} <span className="text-muted-foreground/40 mx-1">vs</span> {models[1]?.label}
+          </p>
+          <p className="text-[10px] text-muted-foreground/40 mt-1">
+            Runs both models on the same sample and compares their predictions.
+          </p>
         </div>
       )}
 
@@ -308,7 +354,12 @@ export function DatasetPreview({ onResult, disabled }: DatasetPreviewProps) {
             {previewing ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Running {dsLabel} Demo...
+                {mode === "compare" ? `Comparing ${dsLabel} Models...` : `Running ${dsLabel} Demo...`}
+              </>
+            ) : mode === "compare" ? (
+              <>
+                <GitCompareArrows className="h-3.5 w-3.5" />
+                Compare {dsLabel} Models
               </>
             ) : (
               <>

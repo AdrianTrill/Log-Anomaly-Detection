@@ -772,7 +772,7 @@ The only model-level difference is that LogBERT uses `forward_cls()` (CLS-based 
 
 The only model-level difference is that LogBERT uses `forward_cls()` (CLS-based pooling) while the Transformer Encoder uses `forward()` (mean pooling) — same distinction as HDFS.
 
-**Frontend** displays real `anomaly_score`, `prediction`, and `inference_status` through the existing AI fields. The model selector appears for both HDFS and BGL (each offers Transformer Encoder / LogBERT).
+**Frontend** displays real `anomaly_score`, `prediction`, and `inference_status` through the existing AI fields. The model selector appears for both HDFS and BGL (each offers Transformer Encoder / LogBERT). A benchmark-only comparison mode allows running both models on the same data slice and viewing results side by side with agreement statistics.
 
 **Limitations:**
 - Inference is benchmark-aligned only — non-HDFS/BGL data gets `inference_status = "not_run"`
@@ -781,6 +781,5 @@ The only model-level difference is that LogBERT uses `forward_cls()` (CLS-based 
 
 ## What Comes Next
 
-1. **Model comparison mode** — Side-by-side model output comparison in the UI
-2. **Generalized inference** — Template matching for arbitrary uploaded logs
-3. **Attention visualization** — Explainability for model predictions
+1. **Generalized inference** — Template matching for arbitrary uploaded logs
+2. **Attention visualization** — Explainability for model predictions

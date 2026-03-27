@@ -118,3 +118,15 @@ export function getDefaultThreshold(modelName: string | null | undefined): numbe
   if (modelName.includes("hdfs")) return 0.5;
   return null;
 }
+
+// Model name without dataset suffix — "Transformer Encoder (HDFS)" → "Transformer Encoder"
+export function shortModelLabel(modelId: string): string {
+  return formatModelName(modelId).replace(/\s*\(.*?\)/, "");
+}
+
+// Compact column header — "transformer_encoder_hdfs" → "TE", "logbert_bgl" → "LogBERT"
+export function columnModelLabel(modelId: string): string {
+  if (modelId.startsWith("transformer_encoder")) return "TE";
+  if (modelId.startsWith("logbert")) return "LogBERT";
+  return shortModelLabel(modelId);
+}
