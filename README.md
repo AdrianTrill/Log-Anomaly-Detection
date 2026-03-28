@@ -139,11 +139,13 @@ npm run dev
 │   ├── components/
 │   │   ├── ai/                     # AI summary section (model name, anomalies)
 │   │   ├── dashboard/              # Summary cards, charts, run metadata, comparison view
+│   │   ├── landing/                # Offline benchmark results section
 │   │   ├── logs/                   # Table, filters, detail panel (score bar, scope context)
 │   │   ├── upload/                 # Dataset preview (model + preset selector), file dropzone
 │   │   └── ui/                     # shadcn/ui components
 │   ├── lib/
 │   │   ├── api.ts                  # API client
+│   │   ├── benchmark-results.ts    # Static offline benchmark metrics (F1, confusion matrix)
 │   │   ├── inference.ts            # Model names, scope helpers, threshold formatting
 │   │   ├── comparison.ts           # Merge + agreement utilities for comparison mode
 │   │   └── utils.ts                # Shared utilities
@@ -168,7 +170,8 @@ npm run dev
     ├── dev-backend.sh              # Start backend only
     ├── dev-frontend.sh             # Start frontend only
     ├── setup-backend.sh            # Install backend dependencies
-    └── setup-frontend.sh           # Install frontend dependencies
+    ├── setup-frontend.sh           # Install frontend dependencies
+    └── find_comparison_slices.py   # Offline utility to discover best comparison presets
 ```
 
 ## API Endpoints
@@ -282,9 +285,11 @@ Generic upload parsing supports:
 The app is designed for thesis presentation with a clear two-track interface:
 
 **Benchmark Evaluation** (primary):
-- Curated sample presets per dataset (Mixed, Anomaly-Heavy, Normal-Heavy) for repeatable demos
+- Landing page with "Offline Benchmark Results" cards showing F1, Precision, Recall, ROC-AUC, Threshold, and confusion matrix summary for all 4 trained models
+- "Recommended Demo Paths" quick-action cards that auto-configure dataset, comparison mode, and preset
+- Mode-aware presets: single-model presets (Balanced Sample, Anomaly-Dense Region, Normal-Dominant Region) and comparison presets (Best Disagreement, Mixed + Disagreement, Confidence Gap) with explanation panels
 - Model selection per dataset (Transformer Encoder or LogBERT)
-- Single Model / Compare Models toggle for benchmark datasets
+- Single Model / Model Comparison toggle for benchmark datasets
 - Compact metadata strip on results page (dataset, model, scope, threshold, sample, line range)
 - Score-vs-threshold visualization in the detail panel
 - Lightweight scope context ("why this was flagged") per entry
@@ -292,13 +297,13 @@ The app is designed for thesis presentation with a clear two-track interface:
 **Model Comparison Mode** (benchmark only):
 - Automatic model pairing per dataset (Transformer Encoder vs LogBERT)
 - Two parallel API calls merged client-side -- no backend changes required
-- Side-by-side summary cards with threshold badges and anomaly counts
-- Agreement statistics card (Both Anomaly, Both Normal, Only TE, Only LogBERT)
+- Side-by-side model cards showing anomalies, normal count, anomaly rate, and subtle threshold
+- Agreement card with clear agreement/disagreement percentages, renamed labels (Flagged by both, Normal by both, Only Transformer Encoder, Only LogBERT), and contextual interpretation line
+- Helper line explaining entry-level counts and threshold behavior
 - Dual-column comparison table with compact headers (TE / LogBERT)
-- Comparison-aware filters (All, Any Anomaly, Both Anomaly, Disagree)
+- Comparison-aware filters (All, Flagged by either, Flagged by both, Disagree)
 - Side-by-side AI analysis in the detail panel with score-vs-threshold bars
 - Subtle left-border highlight for disagreement rows
-- Polished summary cards with stronger hierarchy: prominent anomaly counts, visible anomaly rates, integrated threshold badges, and amber disagree badges in the agreement card
 
 **Custom Log Inspection** (secondary, collapsible):
 - Upload any log file for parsing and inspection
@@ -328,7 +333,7 @@ Prediction granularity:
 - **HDFS** -- per block-session (all log lines sharing a `blk_*` ID get the same score)
 - **BGL** -- per sliding window (consecutive groups of 50 lines)
 
-The benchmark UI offers curated sample presets per dataset (Mixed, Anomaly-Heavy, Normal-Heavy) so demos are repeatable and meaningful. In single-model mode, users select a dataset, model, and sample preset, then run real inference. In comparison mode, the frontend automatically pairs the two models for the selected dataset (Transformer Encoder vs LogBERT), fires two parallel API calls for the same data slice, and merges results client-side into a side-by-side view with agreement statistics and a dual-column comparison table. A compact metadata strip at the top of the results page shows the full run context for easy screenshots. Custom uploads get parsing and inspection only (no inference). Models are lazy-loaded on first request and cached in memory. Thresholds are centralized in `inference_config.py` and surfaced in the API response.
+The landing page is designed as a curated thesis presentation. An "Offline Benchmark Results" section shows F1, Precision, Recall, ROC-AUC, threshold, and confusion matrix summaries for all 4 models at a glance. "Recommended Demo Paths" cards guide the professor to the most interesting comparison slices. Presets are mode-aware: single-model mode shows general-purpose presets (Balanced Sample, Anomaly-Dense Region, Normal-Dominant Region), while comparison mode shows presets optimized for model disagreement (Best Disagreement, Mixed + Disagreement, Confidence Gap). Each preset includes an explanation panel. In comparison mode, the frontend fires two parallel API calls for the same data slice and merges results client-side into a side-by-side view with agreement statistics and a dual-column comparison table. Comparison summary cards show anomalies, normal counts, anomaly rates, agreement/disagreement percentages, and contextual interpretation. A compact metadata strip at the top of the results page shows the full run context for easy screenshots. Custom uploads get parsing and inspection only (no inference). Models are lazy-loaded on first request and cached in memory. Thresholds are centralized in `inference_config.py` and surfaced in the API response.
 
 ## ML Pipeline
 

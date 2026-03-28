@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Loader2,
   AlertCircle,
@@ -11,6 +11,9 @@ import {
   FileText,
   ChevronDown,
   GitCompareArrows,
+  Zap,
+  Shuffle,
+  BarChart3,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,12 +21,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileDropzone } from "@/components/upload/FileDropzone";
 import { SampleDataButton } from "@/components/upload/SampleDataButton";
 import { DatasetPreview } from "@/components/upload/DatasetPreview";
+import type { DatasetPreviewRef } from "@/components/upload/DatasetPreview";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 import { ComparisonView } from "@/components/dashboard/ComparisonView";
 import { RunMetaStrip } from "@/components/dashboard/RunMetaStrip";
+import { BenchmarkResultsSection } from "@/components/landing/BenchmarkResultsSection";
 import { uploadLogFile } from "@/lib/api";
 import { formatModelName, shortModelLabel } from "@/lib/inference";
 import type { UploadResponse, RunContext, ComparisonContext } from "@/types/log";
+
+const QUICK_DEMOS = [
+  {
+    label: "Strongest BGL Disagreement",
+    description: "TE flags anomalies that LogBERT leaves normal",
+    dataset: "BGL",
+    datasetKey: "BGL",
+    preset: "best_disagree",
+    icon: Zap,
+  },
+  {
+    label: "Mixed BGL Comparison",
+    description: "Partial disagreement across both classes",
+    dataset: "BGL",
+    datasetKey: "BGL",
+    preset: "mixed_disagree",
+    icon: Shuffle,
+  },
+  {
+    label: "HDFS Confidence Gap",
+    description: "Same labels, different confidence scores",
+    dataset: "HDFS",
+    datasetKey: "HDFS_v1",
+    preset: "score_gap",
+    icon: BarChart3,
+  },
+] as const;
 
 type DataSource = "upload" | "sample" | "dataset";
 
@@ -47,6 +79,7 @@ export default function HomePage() {
   const [comparisonResult, setComparisonResult] = useState<ComparisonResultMeta | null>(null);
   const [error, setError] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
+  const datasetPreviewRef = useRef<DatasetPreviewRef>(null);
 
   const isLoading = uploading;
 
@@ -217,17 +250,48 @@ export default function HomePage() {
     <div className="container px-6 mx-auto py-10 sm:py-14">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-5">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Log Anomaly Detection
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
-            Transformer-based anomaly detection on benchmark log datasets.
-          </p>
         </div>
 
-        <div className="space-y-4">
-          {/* ── Primary: Benchmark Evaluation ── */}
+        <div className="space-y-3">
+          {/* ── Offline Benchmark Results ── */}
+          <BenchmarkResultsSection />
+
+          {/* ── Recommended Demo Paths ── */}
+          <div className="rounded-xl bg-card ring-1 ring-foreground/5 px-4 py-3.5">
+            <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider mb-2 px-0.5">
+              Recommended Demo Paths
+            </p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {QUICK_DEMOS.map((demo) => {
+                const Icon = demo.icon;
+                return (
+                  <button
+                    key={demo.label}
+                    onClick={() => {
+                      datasetPreviewRef.current?.configure(demo.datasetKey, "compare", demo.preset);
+                    }}
+                    disabled={isLoading}
+                    className="group rounded-lg border border-border/15 bg-background/30 px-2.5 py-2 text-left transition-all hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
+                  >
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Icon className="h-3 w-3 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
+                      <Badge variant="outline" className="text-[8px] py-0 px-1.5 font-normal text-muted-foreground/50 border-border/20">
+                        {demo.dataset}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] font-medium text-foreground/80 leading-snug">{demo.label}</p>
+                    <p className="text-[9px] text-muted-foreground/40 mt-0.5">{demo.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Benchmark Evaluation ── */}
           <Card className="border-border/60 shadow-sm">
             <CardHeader className="pb-2 pt-4 px-5">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -237,11 +301,12 @@ export default function HomePage() {
                 Benchmark Evaluation
               </CardTitle>
               <p className="text-[11px] text-muted-foreground/70 mt-1">
-                Run trained anomaly detection models on benchmark log datasets (HDFS, BGL).
+                Run trained models on curated benchmark slices for thesis demonstration.
               </p>
             </CardHeader>
             <CardContent className="px-5 pb-5">
               <DatasetPreview
+                ref={datasetPreviewRef}
                 onResult={handleDatasetResult}
                 onCompareResult={handleCompareResult}
                 disabled={isLoading}
@@ -262,7 +327,7 @@ export default function HomePage() {
                 <div>
                   <span className="text-sm font-semibold text-muted-foreground">Custom Log Inspection</span>
                   <p className="text-[10px] text-muted-foreground/40 mt-0.5">
-                    Upload any log file for parsing and inspection &mdash; no trained model inference
+                    Upload arbitrary logs for parsing and normalization inspection
                   </p>
                 </div>
               </div>
@@ -303,7 +368,7 @@ export default function HomePage() {
                 </div>
 
                 <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
-                  Custom uploads are parsed and inspected only. Trained anomaly detection models are not applied to arbitrary uploads &mdash; use the benchmark evaluation above for model inference.
+                  Custom uploads are parsed and inspected only. Trained anomaly detection models are not applied to arbitrary uploads.
                 </p>
               </CardContent>
             )}

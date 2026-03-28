@@ -1,11 +1,10 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, GitCompareArrows } from "lucide-react";
+import { Info, GitCompareArrows } from "lucide-react";
 import type { InferenceSummary } from "@/types/log";
 import type { AgreementStats } from "@/lib/comparison";
-import { shortModelLabel, columnModelLabel, formatAnomalyRate, formatThreshold } from "@/lib/inference";
+import { shortModelLabel, columnModelLabel, formatThreshold } from "@/lib/inference";
 
 interface ComparisonSummaryProps {
   summaryA: InferenceSummary | null;
@@ -19,47 +18,39 @@ function ModelCard({ summary, modelId }: { summary: InferenceSummary | null; mod
   const isCompleted = summary?.status === "completed";
   const anomalyCount = summary?.anomalies_detected ?? 0;
   const analyzed = summary?.entries_analyzed ?? 0;
-  const anomalyRate = formatAnomalyRate(anomalyCount, analyzed);
+  const normalCount = analyzed - anomalyCount;
+  const anomalyRate = analyzed > 0 ? ((anomalyCount / analyzed) * 100).toFixed(1) : "0.0";
   const label = shortModelLabel(modelId);
 
   return (
     <Card className="border-border/50 bg-card/50">
-      <CardContent className="pt-3 pb-3 px-3.5 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold">{label}</span>
-          {summary?.threshold != null && (
-            <Badge variant="outline" className="text-[9px] py-0 px-1.5 font-normal text-muted-foreground/70 border-border/40">
-              Threshold {formatThreshold(summary.threshold)}
-            </Badge>
-          )}
-        </div>
+      <CardContent className="pt-3 pb-3 px-3.5">
+        <p className="text-xs font-semibold mb-2">{label}</p>
 
         {isCompleted ? (
-          <div className="space-y-0.5">
-            <div className="flex items-baseline gap-2">
-              {anomalyCount > 0 ? (
-                <>
-                  <span className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400">
-                    {anomalyCount}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground/60">
-                    anomal{anomalyCount === 1 ? "y" : "ies"}
-                  </span>
-                </>
-              ) : (
-                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  No anomalies detected
-                </span>
-              )}
-            </div>
-            {anomalyCount > 0 && (
-              <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
-                <AlertTriangle className="h-2.5 w-2.5 text-red-500/60" />
-                {anomalyRate}% anomaly rate
-              </div>
-            )}
-            <p className="text-[10px] text-muted-foreground/50">{analyzed.toLocaleString()} entries analyzed</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+            <Stat
+              label="Anomalies"
+              value={anomalyCount}
+              color="text-red-600 dark:text-red-400"
+              bold
+            />
+            <Stat
+              label="Normal"
+              value={normalCount}
+              color="text-emerald-600 dark:text-emerald-400"
+              bold
+            />
+            <Stat
+              label="Anomaly rate"
+              value={`${anomalyRate}%`}
+              color="text-muted-foreground/70"
+            />
+            <Stat
+              label="Threshold"
+              value={formatThreshold(summary?.threshold)}
+              color="text-muted-foreground/70"
+            />
           </div>
         ) : (
           <span className="text-[10px] text-muted-foreground/50">No inference</span>
@@ -81,37 +72,66 @@ function AgreementCard({
   const agreeCount = agreement.bothAnomaly + agreement.bothNormal;
   const disagreeCount = agreement.onlyA + agreement.onlyB;
   const agreeRate = agreement.total > 0 ? ((agreeCount / agreement.total) * 100).toFixed(1) : "0.0";
-  const labelA = columnModelLabel(modelAId);
-  const labelB = columnModelLabel(modelBId);
+  const disagreeRate = agreement.total > 0 ? ((disagreeCount / agreement.total) * 100).toFixed(1) : "0.0";
+  const colA = columnModelLabel(modelAId);
+  const colB = columnModelLabel(modelBId);
+
+  let interpretation = "Both models make the same decisions on this slice.";
+  if (agreement.onlyA > agreement.onlyB) {
+    interpretation = "Only Transformer Encoder flags anomalies in this slice.";
+  } else if (agreement.onlyB > agreement.onlyA) {
+    interpretation = "Only LogBERT flags anomalies in this slice.";
+  } else if (disagreeCount > 0) {
+    interpretation = `Each model uniquely flags ${agreement.onlyA} entries.`;
+  }
 
   return (
     <Card className="border-border/50 bg-card/50">
-      <CardContent className="pt-3 pb-3 px-3.5 space-y-2">
-        <div className="flex items-center gap-2">
+      <CardContent className="pt-3 pb-3 px-3.5">
+        <div className="flex items-center gap-2 mb-0.5">
           <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 shrink-0">
             <GitCompareArrows className="h-3 w-3 text-primary" />
           </div>
           <span className="text-xs font-semibold">Agreement</span>
-          <div className="flex items-center gap-1.5 ml-auto">
-            {disagreeCount > 0 && (
-              <Badge variant="outline" className="text-[9px] py-0 px-1.5 font-mono tabular-nums text-amber-600 dark:text-amber-400 border-amber-500/30">
-                {disagreeCount} disagree
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-[9px] py-0 font-mono tabular-nums">
-              {agreeRate}%
-            </Badge>
-          </div>
+        </div>
+        <p className="text-[10px] text-muted-foreground/40 mb-2">How the two models classify this slice</p>
+
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-2">
+          <Stat label="Agreement" value={`${agreeRate}%`} color="text-emerald-600 dark:text-emerald-400" />
+          <Stat label="Disagreement" value={`${disagreeRate}%`} color="text-amber-600 dark:text-amber-400" />
         </div>
 
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-          <StatRow label="Both Anomaly" value={agreement.bothAnomaly} color="text-red-600 dark:text-red-400" />
-          <StatRow label="Both Normal" value={agreement.bothNormal} color="text-emerald-600 dark:text-emerald-400" />
-          <StatRow label={`Only ${labelA}`} value={agreement.onlyA} color="text-amber-600 dark:text-amber-400" />
-          <StatRow label={`Only ${labelB}`} value={agreement.onlyB} color="text-amber-600 dark:text-amber-400" />
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1.5 border-t border-border/20">
+          <StatRow label="Flagged by both" value={agreement.bothAnomaly} color="text-red-600 dark:text-red-400" />
+          <StatRow label="Normal by both" value={agreement.bothNormal} color="text-emerald-600 dark:text-emerald-400" />
+          <StatRow label={`Only ${colA}`} value={agreement.onlyA} color="text-amber-600 dark:text-amber-400" />
+          <StatRow label={`Only ${colB}`} value={agreement.onlyB} color="text-amber-600 dark:text-amber-400" />
         </div>
+
+        <p className="text-[10px] text-muted-foreground/50 italic mt-2">{interpretation}</p>
       </CardContent>
     </Card>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  color,
+  bold,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+  bold?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] text-muted-foreground/50 leading-none mb-0.5">{label}</p>
+      <p className={`text-xs font-mono tabular-nums leading-none ${color} ${bold ? "font-semibold" : "font-medium"}`}>
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -126,10 +146,18 @@ function StatRow({ label, value, color }: { label: string; value: number; color:
 
 export function ComparisonSummary({ summaryA, summaryB, agreement, modelAId, modelBId }: ComparisonSummaryProps) {
   return (
-    <div className="grid gap-2.5 sm:grid-cols-3">
-      <ModelCard summary={summaryA} modelId={modelAId} />
-      <ModelCard summary={summaryB} modelId={modelBId} />
-      <AgreementCard agreement={agreement} modelAId={modelAId} modelBId={modelBId} />
+    <div className="space-y-1.5">
+      <div className="grid gap-2.5 sm:grid-cols-3 items-stretch">
+        <ModelCard summary={summaryA} modelId={modelAId} />
+        <ModelCard summary={summaryB} modelId={modelBId} />
+        <AgreementCard agreement={agreement} modelAId={modelAId} modelBId={modelBId} />
+      </div>
+      <div className="flex items-center gap-1.5 px-0.5">
+        <Info className="h-3 w-3 text-muted-foreground/30 shrink-0" />
+        <p className="text-[10px] text-muted-foreground/40">
+          Counts are per entry in the selected slice. An entry is anomalous when its score exceeds the dataset threshold.
+        </p>
+      </div>
     </div>
   );
 }
