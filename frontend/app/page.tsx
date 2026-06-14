@@ -11,8 +11,9 @@ import {
   FileText,
   ChevronDown,
   GitCompareArrows,
-  Zap,
-  Shuffle,
+  CheckCheck,
+  Scale,
+  XCircle,
   BarChart3,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -32,27 +33,35 @@ import type { UploadResponse, RunContext, ComparisonContext } from "@/types/log"
 
 const QUICK_DEMOS = [
   {
-    label: "Strongest BGL Disagreement",
-    description: "TE flags anomalies that LogBERT leaves normal",
+    label: "Both Models Right",
+    description: "Mixed labels, both models agree",
     dataset: "BGL",
     datasetKey: "BGL",
-    preset: "best_disagree",
-    icon: Zap,
+    preset: "both_correct",
+    icon: CheckCheck,
   },
   {
-    label: "Mixed BGL Comparison",
-    description: "Partial disagreement across both classes",
+    label: "Only One Model Right",
+    description: "TE flags windows LogBERT misses",
     dataset: "BGL",
     datasetKey: "BGL",
-    preset: "mixed_disagree",
-    icon: Shuffle,
+    preset: "only_one_right",
+    icon: Scale,
   },
   {
-    label: "HDFS Confidence Gap",
-    description: "Same labels, different confidence scores",
-    dataset: "HDFS",
-    datasetKey: "HDFS_v1",
-    preset: "score_gap",
+    label: "Both Models Wrong",
+    description: "Shared blind spot, both miss anomalies",
+    dataset: "BGL",
+    datasetKey: "BGL",
+    preset: "both_fail",
+    icon: XCircle,
+  },
+  {
+    label: "Largest Confidence Gap",
+    description: "Same labels, very different scores",
+    dataset: "BGL",
+    datasetKey: "BGL",
+    preset: "confidence_gap",
     icon: BarChart3,
   },
 ] as const;
@@ -265,7 +274,7 @@ export default function HomePage() {
             <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider mb-2 px-0.5">
               Recommended Demo Paths
             </p>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {QUICK_DEMOS.map((demo) => {
                 const Icon = demo.icon;
                 return (

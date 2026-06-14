@@ -20,6 +20,9 @@ class LogEntry(BaseModel):
     model_name: Optional[str] = None
     inference_status: str = "not_run"
 
+    # Dataset ground-truth label ("anomaly" | "normal" | None when unknown)
+    ground_truth: Optional[str] = None
+
 
 class NormalizationInfo(BaseModel):
     ip_masked: int = 0

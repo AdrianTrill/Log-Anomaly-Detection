@@ -13,6 +13,7 @@ export interface LogEntry {
   explanation: string | null;
   model_name: string | null;
   inference_status: "not_run" | "not_available" | "completed" | "error";
+  ground_truth?: "anomaly" | "normal" | null;
 }
 
 export interface NormalizationInfo {

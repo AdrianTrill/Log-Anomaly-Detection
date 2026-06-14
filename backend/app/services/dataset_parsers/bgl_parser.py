@@ -64,6 +64,7 @@ class BGLParser(BaseDatasetParser):
                 component = tokens[7]
                 level = tokens[8].upper()
                 message = tokens[9]
+                ground_truth = "normal" if tokens[0] == "-" else "anomaly"
 
                 entries.append(LogEntry(
                     id=entry_id,
@@ -74,6 +75,7 @@ class BGLParser(BaseDatasetParser):
                     source=f"{source} {component}",
                     message=message,
                     parse_status="parsed",
+                    ground_truth=ground_truth,
                 ))
             else:
                 entries.append(LogEntry(

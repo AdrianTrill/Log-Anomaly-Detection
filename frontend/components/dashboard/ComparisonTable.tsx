@@ -58,6 +58,20 @@ function AiCell({ prediction, score }: { prediction: string | null; score: numbe
   );
 }
 
+function TruthCell({ truth }: { truth: "anomaly" | "normal" | null | undefined }) {
+  if (truth !== "anomaly" && truth !== "normal") {
+    return (
+      <Badge variant="outline" className="text-muted-foreground/40 border-dashed text-[10px] px-1.5 py-0">
+        —
+      </Badge>
+    );
+  }
+  const isAnomaly = truth === "anomaly";
+  const colors = isAnomaly ? ANOMALY_COLORS : NORMAL_COLORS;
+  const label = isAnomaly ? PREDICTION_LABEL.anomaly : "Normal";
+  return <Badge className={`${colors.table} text-[10px] px-1.5 py-0`}>{label}</Badge>;
+}
+
 export function ComparisonTable({
   entries,
   onRowClick,
@@ -128,6 +142,20 @@ export function ComparisonTable({
         ),
       },
       {
+        id: "truth",
+        accessorFn: (row) => row.base.ground_truth ?? "",
+        header: ({ column }) => (
+          <button
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Truth <ArrowUpDown className="h-3 w-3" />
+          </button>
+        ),
+        cell: ({ row }) => <TruthCell truth={row.original.base.ground_truth ?? null} />,
+        size: 100,
+      },
+      {
         id: "model_a",
         accessorFn: (row) => row.modelA.anomaly_score ?? -1,
         header: ({ column }) => (
@@ -181,16 +209,15 @@ export function ComparisonTable({
   });
 
   return (
-    <div className="rounded-lg border overflow-auto max-h-[500px]">
-      <Table>
-        <TableHeader className="sticky top-0 z-10">
+    <Table containerClassName="rounded-lg border max-h-[500px] overflow-auto">
+        <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="bg-muted/50 hover:bg-muted/50 border-b">
+            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b">
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
                   style={{ width: header.getSize() }}
-                  className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground h-8"
+                  className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm text-[11px] font-semibold uppercase tracking-wider text-muted-foreground h-8 shadow-[inset_0_-1px_0_0] shadow-border"
                 >
                   {header.isPlaceholder
                     ? null
@@ -241,6 +268,5 @@ export function ComparisonTable({
           )}
         </TableBody>
       </Table>
-    </div>
   );
 }

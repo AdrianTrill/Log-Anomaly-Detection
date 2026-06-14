@@ -9,10 +9,12 @@ arrives at the frontend in the exact same UploadResponse shape as uploaded files
 from pathlib import Path
 from typing import Optional
 
+import csv
 import logging
+import re
 
 from app.core.config import settings
-from app.models.schemas import DatasetInfo, DatasetsListResponse, InferenceSummary, UploadResponse
+from app.models.schemas import DatasetInfo, DatasetsListResponse, InferenceSummary, LogEntry, UploadResponse
 from app.services.normalizer import normalize_entries
 from app.services.summarizer import generate_summary
 from app.services.dataset_parsers.base_dataset_parser import BaseDatasetParser
@@ -20,6 +22,9 @@ from app.services.dataset_parsers.hdfs_parser import HDFSParser
 from app.services.dataset_parsers.bgl_parser import BGLParser
 
 logger = logging.getLogger(__name__)
+
+_HDFS_BLOCK_ID_PATTERN = re.compile(r"(blk_-?\d+)")
+_HDFS_BLOCK_LABELS: Optional[dict[str, str]] = None
 
 DATASET_REGISTRY: dict[str, BaseDatasetParser] = {
     "HDFS_v1": HDFSParser(),
@@ -78,6 +83,9 @@ def load_and_parse(
     entries = parser.parse_file(filepath, max_lines=max_lines, start_line=start_line)
     total_lines = len(entries)
     entries, normalization_info = normalize_entries(entries)
+
+    if dataset_name == "HDFS_v1":
+        _apply_hdfs_ground_truth(entries)
 
     file_label = f"{dataset_name}/{parser.file_pattern}"
     if max_lines is not None:
@@ -238,3 +246,49 @@ def _run_bgl_inference(response: UploadResponse) -> UploadResponse:
         logger.error("BGL inference failed: %s", e)
 
     return response
+
+
+def _load_hdfs_block_labels() -> dict[str, str]:
+    """Load HDFS block-id -> "anomaly"/"normal" labels from anomaly_label.csv.
+
+    Cached after first read. Returns empty dict if the file is missing.
+    """
+    global _HDFS_BLOCK_LABELS
+    if _HDFS_BLOCK_LABELS is not None:
+        return _HDFS_BLOCK_LABELS
+
+    label_path = settings.resolved_datasets_dir / "raw" / "HDFS_v1" / "preprocessed" / "anomaly_label.csv"
+    labels: dict[str, str] = {}
+    if not label_path.is_file():
+        logger.info("HDFS anomaly_label.csv not found at %s; ground truth disabled", label_path)
+        _HDFS_BLOCK_LABELS = labels
+        return labels
+
+    try:
+        with open(label_path, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                block_id = (row.get("BlockId") or "").strip()
+                raw = (row.get("Label") or "").strip().lower()
+                if not block_id or not raw:
+                    continue
+                labels[block_id] = "anomaly" if raw == "anomaly" else "normal"
+        logger.info("Loaded %d HDFS block labels for ground truth", len(labels))
+    except Exception as e:
+        logger.error("Failed to load HDFS block labels: %s", e)
+
+    _HDFS_BLOCK_LABELS = labels
+    return labels
+
+
+def _apply_hdfs_ground_truth(entries: list[LogEntry]) -> None:
+    """Tag each HDFS entry with its block-level ground truth label, if known."""
+    labels = _load_hdfs_block_labels()
+    if not labels:
+        return
+
+    for entry in entries:
+        text = entry.message or entry.raw_line or ""
+        match = _HDFS_BLOCK_ID_PATTERN.search(text)
+        if match:
+            entry.ground_truth = labels.get(match.group(1))
